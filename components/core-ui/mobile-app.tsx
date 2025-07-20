@@ -630,6 +630,7 @@ export default function MobileApp({
                               <Input
                                 className="pl-10"
                                 type="text"
+                                maxLength={7}
                                 value={
                                   textColor.startsWith("#")
                                     ? textColor
@@ -1189,6 +1190,7 @@ export default function MobileApp({
                             </Popover>
                             <Input
                               type="text"
+                              maxLength={7}
                               value={
                                 backgroundColor.startsWith("#")
                                   ? backgroundColor
@@ -1358,6 +1360,7 @@ export default function MobileApp({
 
                                   <Input
                                     type="text"
+                                    maxLength={7}
                                     value={
                                       circle.color.startsWith("#")
                                         ? circle.color

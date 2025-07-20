@@ -438,6 +438,7 @@ export default function DesktopApp({
                           <Input
                             className="pl-10"
                             type="text"
+                            maxLength={7}
                             value={
                               textColor.startsWith("#")
                                 ? textColor
@@ -1115,6 +1116,7 @@ export default function DesktopApp({
                   </Popover>
                   <Input
                     type="text"
+                    maxLength={7}
                     value={
                       backgroundColor.startsWith("#")
                         ? backgroundColor
@@ -1256,7 +1258,7 @@ export default function DesktopApp({
                                 setActiveColorPicker(color);
                                 handleColorChange(color);
                               }}
-                            />
+                            /> 
                           </PopoverContent>
                         </Popover>
 
@@ -1267,6 +1269,7 @@ export default function DesktopApp({
                               ? circle.color
                               : `#${circle.color}`
                           }
+                          maxLength={7}
                           className="w-full pl-10 pr-4"
                           placeholder="Color"
                           onChange={(e) => {

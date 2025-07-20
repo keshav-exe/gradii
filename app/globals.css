@@ -154,8 +154,8 @@
 }
 
 .dark ::selection {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--foreground));
+  background-color: hsl(var(--accent-foreground));
+  color: hsl(var(--accent));
 }
 
 ::view-transition-group(root) {
