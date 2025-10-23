@@ -87,8 +87,8 @@ function DraggablePreview({
 
   const style = transform
     ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
+      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    }
     : undefined;
 
   return (
@@ -363,9 +363,8 @@ export default function MobileApp({
                           lineHeight: lineHeight,
                           color: textColor,
                           fontStyle: isItalic ? "italic" : "normal",
-                          textDecoration: `${isUnderline ? "underline" : ""} ${
-                            isStrikethrough ? "line-through" : ""
-                          }`.trim(),
+                          textDecoration: `${isUnderline ? "underline" : ""} ${isStrikethrough ? "line-through" : ""
+                            }`.trim(),
                           textShadow: `${textShadow.offsetX}px ${textShadow.offsetY}px ${textShadow.blur}px ${textShadow.color}`,
                           transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
                           whiteSpace: "pre-wrap",
@@ -528,7 +527,7 @@ export default function MobileApp({
                           className={cn(
                             "resize-none whitespace-pre-wrap",
                             sizeMode === "image" &&
-                              "opacity-50 cursor-not-allowed"
+                            "opacity-50 cursor-not-allowed"
                           )}
                           value={text}
                           onChange={(e) => setText(e.target.value)}
@@ -545,9 +544,8 @@ export default function MobileApp({
                         </div>
                         <div className="relative flex flex-col gap-2 pt-2">
                           <label
-                            className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10  ${
-                              isUploading ? "opacity-50 cursor-not-allowed" : ""
-                            }`}
+                            className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10  ${isUploading ? "opacity-50 cursor-not-allowed" : ""
+                              }`}
                           >
                             <Input
                               type="file"
@@ -663,7 +661,9 @@ export default function MobileApp({
                                       key={font.name}
                                       value={font.name}
                                     >
-                                      {font.name}
+                                      <span style={{ fontFamily: `"${font.name}", sans-serif` }}>
+                                        {font.name}
+                                      </span>
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
@@ -1204,7 +1204,7 @@ export default function MobileApp({
                               className={cn(
                                 "resize-none pl-10",
                                 backgroundImage &&
-                                  "opacity-50 cursor-not-allowed"
+                                "opacity-50 cursor-not-allowed"
                               )}
                               disabled={!!backgroundImage}
                             />
@@ -1218,9 +1218,8 @@ export default function MobileApp({
                       </div>
                       <div className="relative">
                         <label
-                          className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10 ${
-                            isUploading ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10 ${isUploading ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                         >
                           <Input
                             type="file"
