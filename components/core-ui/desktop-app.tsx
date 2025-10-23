@@ -21,6 +21,8 @@ import {
   ChevronRight,
   ShuffleIcon,
   RotateCcwIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -452,29 +454,54 @@ export default function DesktopApp({
                           />
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2 w-full">
+
+                      <div className="flex flex-col gap-2">
                         <label className="text-sm text-muted-foreground">
                           Font
                         </label>
-                        <Select
-                          value={fontFamily}
-                          onValueChange={setFontFamily}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select font" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {fonts.map((font) => (
-                                <SelectItem key={font.name} value={font.name}>
-                                  <span style={{ fontFamily: `"${font.name}", sans-serif` }}>
-                                    {font.name}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
+
+                        <div className="flex items-center gap-1">
+                          <Select value={fontFamily} onValueChange={setFontFamily}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select font" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                {fonts.map((font) => (
+                                  <SelectItem key={font.name} value={font.name}>
+                                    <div style={{ fontFamily: `"${font.name}", sans-serif` }}>
+                                      {font.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+
+                          <Button
+                            type="button"
+                            size="icon"
+                            onClick={() => {
+                              const i = fonts.findIndex((f) => f.name === fontFamily);
+                              const prev = (i - 1 + fonts.length) % fonts.length;
+                              setFontFamily(fonts[prev].name);
+                            }}>
+                            <ChevronUpIcon className="size-4" />
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="icon"
+                            onClick={() => {
+                              const i = fonts.findIndex((f) => f.name === fontFamily);
+                              const next = (i + 1) % fonts.length;
+                              setFontFamily(fonts[next].name);
+                            }}>
+                            <ChevronDownIcon className="size-4" />
+
+                          </Button>
+                        </div>
+
                       </div>
                     </>
                   )}
