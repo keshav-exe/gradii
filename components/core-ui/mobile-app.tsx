@@ -192,7 +192,15 @@ export default function MobileApp({
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setBackgroundImage(reader.result as string);
+        if (typeof window !== 'undefined') {
+          const img = document.createElement('img');
+          img.onload = () => {
+            // Set canvas resolution to match the uploaded image dimensions
+            setResolution({ width: img.width, height: img.height });
+            setBackgroundImage(reader.result as string);
+          };
+          img.src = reader.result as string;
+        }
       };
       reader.readAsDataURL(file);
     }

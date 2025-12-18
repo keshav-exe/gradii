@@ -128,16 +128,16 @@ export function CanvasPreview() {
       const img = new Image();
       img.src = effectiveValues.backgroundImage;
       img.onload = () => {
-        const scale = Math.max(
-          effectiveValues.resolution.width / img.width,
-          effectiveValues.resolution.height / img.height
+        // Draw the image at its actual size to fill the canvas completely
+        // Since we're now setting canvas resolution to match image dimensions,
+        // we can simply draw the image to fill the entire canvas
+        ctx.drawImage(
+          img, 
+          0, 
+          0, 
+          effectiveValues.resolution.width, 
+          effectiveValues.resolution.height
         );
-        const scaledWidth = img.width * scale;
-        const scaledHeight = img.height * scale;
-        const x = (effectiveValues.resolution.width - scaledWidth) / 2;
-        const y = (effectiveValues.resolution.height - scaledHeight) / 2;
-
-        ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
         debouncedCompositeCanvas(compositeCanvas);
       };
     } else {
