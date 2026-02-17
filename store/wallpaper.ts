@@ -60,6 +60,8 @@ interface WallpaperState {
   // Add these to WallpaperState interface
   sizeMode: "text" | "image";
   logoImage: string | null;
+  foregroundVisible: boolean;
+  foregroundLocked: boolean;
 
   // Text Alignment
   textAlign: "left" | "center" | "right";
@@ -115,6 +117,8 @@ interface WallpaperState {
 
   // Add missing setters
   setTextAlign: (align: "left" | "center" | "right") => void;
+  setForegroundVisible: (visible: boolean) => void;
+  setForegroundLocked: (locked: boolean) => void;
 
   // Add to WallpaperState interface
   isCopying: boolean;
@@ -126,10 +130,15 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   colors: INITIAL_COLORS,
   backgroundColors: INITIAL_BACKGROUND_COLORS,
   activeColor: null,
-  circles: INITIAL_COLORS.map((color) => ({
+  circles: INITIAL_COLORS.map((color, index) => ({
+    id: `blob-${index + 1}`,
+    name: `Blob ${index + 1}`,
     color,
     cx: Math.random() * 100,
     cy: Math.random() * 100,
+    r: 22,
+    visible: true,
+    locked: false,
   })),
   previousCircles: [],
   numCircles: INITIAL_COLORS.length,
@@ -170,51 +179,15 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   // Add to initial state
   sizeMode: "text",
   logoImage: null,
+  foregroundVisible: true,
+  foregroundLocked: false,
 
   // Text Alignment
   textAlign: "center",
 
   // Actions
   setCircles: (circles) => {
-    // Check for overlapping circles and reposition if needed
-    const repositionedCircles = circles.map((circle, index) => {
-      const overlapping = circles.some((other, otherIndex) => {
-        if (index === otherIndex) return false;
-        const distance = Math.sqrt(
-          Math.pow(circle.cx - other.cx, 2) + Math.pow(circle.cy - other.cy, 2)
-        );
-        return distance < 20; // Threshold for overlap
-      });
-
-      if (overlapping) {
-        // Try to find a non-overlapping position
-        let attempts = 0;
-        let newCx = circle.cx;
-        let newCy = circle.cy;
-
-        while (attempts < 10) {
-          newCx = Math.random() * 100;
-          newCy = Math.random() * 100;
-
-          const hasOverlap = circles.some((other, otherIndex) => {
-            if (index === otherIndex) return false;
-            const distance = Math.sqrt(
-              Math.pow(newCx - other.cx, 2) + Math.pow(newCy - other.cy, 2)
-            );
-            return distance < 20;
-          });
-
-          if (!hasOverlap) break;
-          attempts++;
-        }
-
-        return { ...circle, cx: newCx, cy: newCy };
-      }
-
-      return circle;
-    });
-
-    set({ circles: repositionedCircles });
+    set({ circles, numCircles: circles.length });
   },
   setPreviousCircles: (circles) => set({ previousCircles: circles }),
   setActiveColor: (index) => set({ activeColor: index }),
@@ -280,14 +253,21 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   setTextMode: (mode) => set({ sizeMode: mode }),
   setLogoImage: (image) => set({ logoImage: image }),
   setTextAlign: (align) => set({ textAlign: align }),
+  setForegroundVisible: (visible) => set({ foregroundVisible: visible }),
+  setForegroundLocked: (locked) => set({ foregroundLocked: locked }),
   isCopying: false,
   setIsCopying: (isCopying) => set({ isCopying }),
   resetPalette: () => {
     const { circles } = get();
     const newCircles = INITIAL_COLORS.map((color, index) => ({
+      id: circles[index]?.id ?? `blob-${index + 1}`,
+      name: circles[index]?.name ?? `Blob ${index + 1}`,
       color,
       cx: circles[index]?.cx ?? Math.random() * 100,
       cy: circles[index]?.cy ?? Math.random() * 100,
+      r: circles[index]?.r ?? 22,
+      visible: circles[index]?.visible ?? true,
+      locked: circles[index]?.locked ?? false,
     }));
 
     // Check for overlapping circles and reposition if needed

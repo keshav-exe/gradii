@@ -1,8 +1,12 @@
 export interface CircleProps {
+  id?: string;
+  name?: string;
   color: string;
   cx: number;
   cy: number;
-  r?: string;
+  r?: number;
+  visible?: boolean;
+  locked?: boolean;
 }
 
 export interface FontOption {
@@ -368,6 +372,10 @@ export interface AppProps {
   setLogoImage: (image: string | null) => void;
   textAlign: "left" | "center" | "right";
   setTextAlign: (align: "left" | "center" | "right") => void;
+  foregroundVisible: boolean;
+  setForegroundVisible: (visible: boolean) => void;
+  foregroundLocked: boolean;
+  setForegroundLocked: (locked: boolean) => void;
   copyImage: () => void;
   isCopying: boolean;
   setIsCopying: (isCopying: boolean) => void;

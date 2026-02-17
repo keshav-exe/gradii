@@ -120,7 +120,9 @@ export function drawShape(
 
   // Generate blob path
   const points = 6;
-  const radius = (30 / 100) * Math.min(ctx.canvas.width, ctx.canvas.height); // Scale radius
+  const radiusPercent = circle.r ?? 22;
+  const radius =
+    (radiusPercent / 100) * Math.min(ctx.canvas.width, ctx.canvas.height);
   const variance = 0.4;
 
   path.moveTo(x + radius, y);

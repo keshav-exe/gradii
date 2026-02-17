@@ -537,9 +537,14 @@ export default function Home() {
     const newColors = generateHarmonious();
     store.setCircles(
       newColors.map((color, i) => ({
+        id: store.circles[i]?.id ?? `blob-${i + 1}`,
+        name: store.circles[i]?.name ?? `Blob ${i + 1}`,
         color,
         cx: store.circles[i]?.cx ?? Math.random() * 100,
         cy: store.circles[i]?.cy ?? Math.random() * 100,
+        r: store.circles[i]?.r ?? 22,
+        visible: store.circles[i]?.visible ?? true,
+        locked: store.circles[i]?.locked ?? false,
       }))
     );
   };

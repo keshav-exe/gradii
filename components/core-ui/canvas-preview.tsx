@@ -141,10 +141,12 @@ export function CanvasPreview() {
         debouncedCompositeCanvas(compositeCanvas);
       };
     } else {
-      effectiveValues.circles.forEach((circle) => {
+      effectiveValues.circles
+        .filter((circle) => circle.visible !== false)
+        .forEach((circle) => {
         const shape = generateRandomShape(circle.color);
         drawShape(ctx, shape, circle);
-      });
+        });
       debouncedCompositeCanvas(compositeCanvas);
     }
   }, [
@@ -220,7 +222,6 @@ export function CanvasPreview() {
 
   return (
     <canvas
-      id="wallpaper"
       className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
       ref={canvasRef}
       width={effectiveValues.resolution.width}

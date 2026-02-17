@@ -20,7 +20,6 @@ import {
   CropIcon,
   PlusIcon,
   ExpandIcon,
-  Move,
   RefreshCcwIcon,
   ShuffleIcon,
   RotateCcwIcon,
@@ -44,7 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import VaulDrawer from "@/components/ui/drawer";
-import { AppProps, INITIAL_COLORS, RESOLUTION_PRESETS } from "@/lib/constants";
+import { AppProps, RESOLUTION_PRESETS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef, Suspense } from "react";
 import logo from "@/public/logo.svg";
@@ -53,20 +52,12 @@ import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
 import { Button } from "../ui/button";
 import { CanvasPreview } from "./canvas-preview";
-import {
-  DndContext,
-  useDraggable,
-  useSensor,
-  useSensors,
-  MouseSensor,
-  TouchSensor,
-  DragEndEvent,
-} from "@dnd-kit/core";
 import { useGesture } from "@use-gesture/react";
-import { PositionControl } from "../ui/position-control";
 import { toast } from "sonner";
 import SettingsDrawerContent from "../drawer-content/settings-drawer-content";
 import { motion } from "motion/react";
+import { BlobCanvasControls } from "./blob-canvas-controls";
+import { LayersPanel } from "./layers-panel";
 import {
   Dialog,
   DialogContent,
@@ -75,30 +66,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-function DraggablePreview({
-  children,
-  id,
-}: {
-  children: React.ReactNode;
-  id: string;
-}) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id,
-  });
-
-  const style = transform
-    ? {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    }
-    : undefined;
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      {children}
-    </div>
-  );
-}
 
 export default function MobileApp({
   blur,
@@ -133,7 +100,6 @@ export default function MobileApp({
   handleColorChange,
   setActiveColorType,
   setActiveColor,
-  updateColor,
   fonts,
   activeColorPicker,
   setTextColor,
@@ -171,19 +137,24 @@ export default function MobileApp({
   setLogoImage,
   textAlign,
   setTextAlign,
+  foregroundVisible,
+  setForegroundVisible,
+  foregroundLocked,
+  setForegroundLocked,
   copyImage,
   isCopying,
   handlePaletteChange,
   resetPalette,
 }: AppProps) {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(0.2);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isPositionControlOpen, setIsPositionControlOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isResolutionOpen, setIsResolutionOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [selectedBlobIndex, setSelectedBlobIndex] = useState<number | null>(
+    null
+  );
 
   const handleBackgroundImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -204,12 +175,6 @@ export default function MobileApp({
         event.preventDefault();
         const newZoom = Math.min(Math.max(0.1, d / 50), 2);
         setZoom(newZoom);
-      },
-      onDrag: ({ delta: [dx, dy] }) => {
-        setPosition((prev) => ({
-          x: prev.x + dx,
-          y: prev.y + dy,
-        }));
       },
     },
     {
@@ -247,27 +212,39 @@ export default function MobileApp({
     ));
   }, [fonts, text]);
 
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 0,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    })
-  );
+  const handleForegroundDragStart = (
+    event: React.PointerEvent<HTMLElement | HTMLImageElement>
+  ) => {
+    if (!foregroundVisible || foregroundLocked) return;
+    event.preventDefault();
+    event.stopPropagation();
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { delta } = event;
-    if (delta) {
-      setPosition((prev) => ({
-        x: prev.x + delta.x,
-        y: prev.y + delta.y,
-      }));
+    const startPointer = { x: event.clientX, y: event.clientY };
+    const startPosition = { ...textPosition };
+
+    const onMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      setTextPosition({
+        x: startPosition.x + (moveEvent.clientX - startPointer.x) / zoom,
+        y: startPosition.y + (moveEvent.clientY - startPointer.y) / zoom,
+      });
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const handleBlobSelect = (index: number | null) => {
+    setSelectedBlobIndex(index);
+    if (index !== null) {
+      setActiveColorType("gradient");
+      setActiveColor(index);
+      setActiveColorPicker(circles[index].color);
     }
   };
 
@@ -320,20 +297,18 @@ export default function MobileApp({
 
       {/* preview section */}
       <section className="flex flex-col gap-4 w-full h-full items-center justify-center relative touch-none overflow-hidden px-2 ">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <div
+          className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative border border-primary/10"
+          ref={containerRef}
+          onClick={() => setSelectedBlobIndex(null)}
+        >
           <div
-            className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative cursor-grab active:cursor-grabbing border border-primary/10"
-            ref={containerRef}
+            className="relative overflow-hidden rounded-2xl"
+            style={{
+              height: resolution.height * zoom,
+              width: resolution.width * zoom,
+            }}
           >
-            <DraggablePreview id="preview">
-              <div
-                className="relative overflow-hidden rounded-2xl"
-                style={{
-                  height: resolution.height * zoom,
-                  width: resolution.width * zoom,
-                  transform: `translate(${position.x}px, ${position.y}px)`,
-                }}
-              >
                 <div
                   id="wallpaper"
                   style={{
@@ -352,10 +327,17 @@ export default function MobileApp({
                   )}
 
                   <CanvasPreview />
+                  <BlobCanvasControls
+                    circles={circles}
+                    setCircles={setCircles}
+                    selectedBlobIndex={selectedBlobIndex}
+                    onSelectBlob={handleBlobSelect}
+                  />
 
                   <div className="absolute inset-0 flex items-center justify-center z-40">
-                    {sizeMode === "text" ? (
+                    {foregroundVisible && (sizeMode === "text" ? (
                       <p
+                        onPointerDown={handleForegroundDragStart}
                         style={{
                           fontSize: `${fontSize}em`,
                           fontWeight: fontWeight,
@@ -371,6 +353,7 @@ export default function MobileApp({
                           transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
                           whiteSpace: "pre-wrap",
                           textAlign: textAlign,
+                          cursor: foregroundLocked ? "not-allowed" : "grab",
                         }}
                         className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
                       >
@@ -380,6 +363,7 @@ export default function MobileApp({
                       logoImage && (
                         <Image
                           className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
+                          onPointerDown={handleForegroundDragStart}
                           unoptimized
                           src={logoImage}
                           alt="Logo"
@@ -389,16 +373,15 @@ export default function MobileApp({
                             opacity: opacity / 100,
                             transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
                             filter: `drop-shadow(${textShadow.offsetX}px ${textShadow.offsetY}px ${textShadow.blur}px ${textShadow.color})`,
+                            cursor: foregroundLocked ? "not-allowed" : "grab",
                           }}
                         />
                       )
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
-            </DraggablePreview>
           </div>
-        </DndContext>
+        </div>
 
         <div className="absolute bottom-0 right-0 left-0 flex items-end gap-2 z-10 justify-between px-4 py-2">
           <div className="flex items-center gap-2">
@@ -474,31 +457,7 @@ export default function MobileApp({
             >
               <ZoomOutIcon className="size-4" />
             </Button>
-            <Button
-              className="w-fit"
-              onClick={() => setIsPositionControlOpen(true)}
-            >
-              <Move className="size-4" />
-            </Button>
           </div>
-          <VaulDrawer
-            isOpen={isPositionControlOpen}
-            setIsOpen={setIsPositionControlOpen}
-            title="Position"
-            direction="bottom"
-            showHandle={true}
-            className="max-h-[50dvh] rounded-t-xl"
-          >
-            <div className="flex flex-col gap-2 w-full p-4">
-              <PositionControl
-                value={textPosition}
-                onChange={setTextPosition}
-                width={resolution.width}
-                height={resolution.height}
-                className="max-w-[280px] max-h-[280px]"
-              />
-            </div>
-          </VaulDrawer>
         </div>
       </section>
 
@@ -1298,127 +1257,84 @@ export default function MobileApp({
                       </div>
                     </div>
 
-                    {!backgroundImage && (
-                      <>
-                        <Separator className="my-2" />
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2 justify-between">
-                            <label className="text-sm text-muted-foreground">
-                              Palette
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                className="p-0"
-                                onClick={() => {
-                                  generateNewPalette();
-                                }}
-                                disabled={numCircles >= 10}
-                              >
-                                <RefreshCcwIcon className="size-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="p-0"
-                                onClick={() => {
-                                  const newCircle = {
-                                    color:
-                                      colors[circles.length % colors.length],
-                                    cx: Math.random() * 100,
-                                    cy: Math.random() * 100,
-                                  };
-                                  setCircles([...circles, newCircle]);
-                                  setNumCircles(circles.length + 1);
-                                }}
-                                disabled={numCircles >= 10}
-                              >
-                                <PlusIcon className="size-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="p-0"
-                                onClick={resetPalette}
-                                disabled={colors === INITIAL_COLORS}
-                              >
-                                <RotateCcwIcon className="size-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          {circles.map((circle, i) => (
-                            <div
-                              key={i}
-                              className="flex items-start gap-2 relative w-full"
-                            >
-                              <div
-                                className="flex items-center gap-2 w-full"
-                                onClick={() => {
-                                  setActiveColorType("gradient");
-                                  setActiveColor(i);
-                                  setActiveColorPicker(circle.color);
-                                }}
-                              >
-                                <div className="flex items-center gap-2 relative w-full">
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <span
-                                        className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
-                                        style={{
-                                          backgroundColor: circle.color,
-                                        }}
-                                      />
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-auto p-3"
-                                      align="start"
-                                    >
-                                      <HexColorPicker
-                                        color={activeColorPicker}
-                                        onChange={(color) => {
-                                          setActiveColorPicker(color);
-                                          handleColorChange(color);
-                                        }}
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
-
-                                  <Input
-                                    type="text"
-                                    value={
-                                      circle.color.startsWith("#")
-                                        ? circle.color
-                                        : `#${circle.color}`
-                                    }
-                                    className="w-full pl-10 pr-4"
-                                    placeholder="Color"
-                                    onChange={(e) => {
-                                      const color = e.target.value.startsWith(
-                                        "#"
-                                      )
-                                        ? e.target.value
-                                        : `#${e.target.value}`;
-                                      updateColor(color, i);
-                                    }}
-                                  />
-                                  <button
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
-                                    onClick={() => {
-                                      setCircles(
-                                        circles.filter(
-                                          (_, index) => index !== i
-                                        )
-                                      );
-                                      setNumCircles(circles.length - 1);
-                                    }}
-                                  >
-                                    <Trash2Icon className="size-4 text-muted-foreground hover:text-destructive transition-all duration-300" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                    <Separator className="my-2" />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 justify-between">
+                        <label className="text-sm text-muted-foreground">
+                          Layers
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            className="p-0"
+                            onClick={() => {
+                              generateNewPalette();
+                            }}
+                            disabled={numCircles >= 10}
+                          >
+                            <RefreshCcwIcon className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="p-0"
+                            onClick={() => {
+                              const newCircle = {
+                                id: `blob-${Date.now()}`,
+                                name: `Blob ${circles.length + 1}`,
+                                color: colors[circles.length % colors.length],
+                                cx: Math.random() * 100,
+                                cy: Math.random() * 100,
+                                r: 22,
+                                visible: true,
+                                locked: false,
+                              };
+                              setCircles([...circles, newCircle]);
+                              setNumCircles(circles.length + 1);
+                            }}
+                            disabled={numCircles >= 10}
+                          >
+                            <PlusIcon className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="p-0"
+                            onClick={resetPalette}
+                          >
+                            <RotateCcwIcon className="size-4" />
+                          </Button>
                         </div>
-                      </>
-                    )}
+                      </div>
+
+                      <LayersPanel
+                        circles={circles}
+                        setCircles={setCircles}
+                        selectedBlobIndex={selectedBlobIndex}
+                        onSelectBlob={handleBlobSelect}
+                        foregroundVisible={foregroundVisible}
+                        setForegroundVisible={setForegroundVisible}
+                        foregroundLocked={foregroundLocked}
+                        setForegroundLocked={setForegroundLocked}
+                        sizeMode={sizeMode}
+                      />
+
+                      {selectedBlobIndex !== null && (
+                        <Button
+                          variant="destructive"
+                          onClick={() => {
+                            setCircles(
+                              circles.filter(
+                                (_, index) => index !== selectedBlobIndex
+                              )
+                            );
+                            setNumCircles(Math.max(1, circles.length - 1));
+                            setSelectedBlobIndex(null);
+                          }}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Remove Selected Layer
+                        </Button>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </Suspense>

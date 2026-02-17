@@ -50,16 +50,7 @@ import { CanvasPreview } from "./canvas-preview";
 import { toast } from "sonner";
 import { Separator } from "../ui/separator";
 import { Button } from "../ui/button";
-import {
-  DndContext,
-  useDraggable,
-  useSensor,
-  useSensors,
-  MouseSensor,
-  TouchSensor,
-  DragEndEvent,
-} from "@dnd-kit/core";
-import { PositionControl } from "@/components/ui/position-control";
+import { BlobCanvasControls } from "./blob-canvas-controls";
 import {
   Dialog,
   DialogContent,
@@ -73,29 +64,7 @@ import TwitterIcon from "@/lib/icons/twitter";
 import Link from "next/link";
 import { motion } from "motion/react";
 import VaulDrawer from "../ui/drawer";
-function DraggablePreview({
-  children,
-  id,
-}: {
-  children: React.ReactNode;
-  id: string;
-}) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id,
-  });
-
-  const style = transform
-    ? {
-      transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    }
-    : undefined;
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      {children}
-    </div>
-  );
-}
+import { LayersPanel } from "./layers-panel";
 
 export default function DesktopApp({
   blur,
@@ -130,7 +99,6 @@ export default function DesktopApp({
   handleColorChange,
   setActiveColorType,
   setActiveColor,
-  updateColor,
   fonts,
   activeColorPicker,
   setTextColor,
@@ -168,14 +136,20 @@ export default function DesktopApp({
   setLogoImage,
   textAlign,
   setTextAlign,
+  foregroundVisible,
+  setForegroundVisible,
+  foregroundLocked,
+  setForegroundLocked,
   copyImage,
   isCopying,
   handlePaletteChange,
   resetPalette,
 }: AppProps) {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [selectedBlobIndex, setSelectedBlobIndex] = useState<number | null>(
+    null
+  );
 
   const handleBackgroundImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -223,27 +197,40 @@ export default function DesktopApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(0.4);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 0,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    })
-  );
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { delta } = event;
-    if (delta) {
-      setPosition((prev) => ({
-        x: prev.x + delta.x,
-        y: prev.y + delta.y,
-      }));
+  const handleForegroundDragStart = (
+    event: React.PointerEvent<HTMLElement | HTMLImageElement>
+  ) => {
+    if (!foregroundVisible || foregroundLocked) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startPointer = { x: event.clientX, y: event.clientY };
+    const startPosition = { ...textPosition };
+
+    const onMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      setTextPosition({
+        x: startPosition.x + (moveEvent.clientX - startPointer.x) / zoom,
+        y: startPosition.y + (moveEvent.clientY - startPointer.y) / zoom,
+      });
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const handleBlobSelect = (index: number | null) => {
+    setSelectedBlobIndex(index);
+    if (index !== null) {
+      setActiveColorType("gradient");
+      setActiveColor(index);
+      setActiveColorPicker(circles[index].color);
     }
   };
 
@@ -888,17 +875,17 @@ export default function DesktopApp({
           </Button>
         </div>
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative ">
-            <DraggablePreview id="preview">
-              <div
-                className="relative overflow-hidden rounded-2xl cursor-grab active:cursor-grabbing"
-                style={{
-                  height: resolution.height * zoom,
-                  width: resolution.width * zoom,
-                  transform: `translate(${position.x}px, ${position.y}px)`,
-                }}
-              >
+        <div
+          className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative "
+          onClick={() => setSelectedBlobIndex(null)}
+        >
+          <div
+            className="relative overflow-hidden rounded-2xl"
+            style={{
+              height: resolution.height * zoom,
+              width: resolution.width * zoom,
+            }}
+          >
                 <div
                   id="wallpaper"
                   style={{
@@ -917,9 +904,16 @@ export default function DesktopApp({
                   ) : (
                     <>
                       <CanvasPreview />
+                      <BlobCanvasControls
+                        circles={circles}
+                        setCircles={setCircles}
+                        selectedBlobIndex={selectedBlobIndex}
+                        onSelectBlob={handleBlobSelect}
+                      />
                       <div className="absolute inset-0 flex items-center justify-center z-40">
-                        {sizeMode === "text" ? (
+                        {foregroundVisible && (sizeMode === "text" ? (
                           <p
+                            onPointerDown={handleForegroundDragStart}
                             style={{
                               fontSize: `${fontSize}em`,
                               fontWeight: fontWeight,
@@ -937,6 +931,7 @@ export default function DesktopApp({
                               whiteSpace: "pre-wrap",
                               textWrap: "nowrap",
                               textAlign: textAlign,
+                              cursor: foregroundLocked ? "not-allowed" : "grab",
                             }}
                             className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
                           >
@@ -947,6 +942,7 @@ export default function DesktopApp({
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={logoImage}
+                              onPointerDown={handleForegroundDragStart}
                               className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
                               alt="Logo"
                               style={{
@@ -955,18 +951,17 @@ export default function DesktopApp({
                                 opacity: opacity / 100,
                                 transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
                                 filter: `drop-shadow(${textShadow.offsetX}px ${textShadow.offsetY}px ${textShadow.blur}px ${textShadow.color})`,
+                                cursor: foregroundLocked ? "not-allowed" : "grab",
                               }}
                             />
                           )
-                        )}
+                        ))}
                       </div>
                     </>
                   )}
                 </div>
-              </div>
-            </DraggablePreview>
           </div>
-        </DndContext>
+        </div>
       </section>
 
       {/* right controls */}
@@ -1219,116 +1214,66 @@ export default function DesktopApp({
             </div>
           </div>
 
-          {!backgroundImage && (
-            <>
-              <Separator className="my-2" />
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 justify-between">
-                  <label className="text-sm text-muted-foreground">
-                    Palette
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      className="p-0"
-                      onClick={() => {
-                        const newCircle = {
-                          color: colors[circles.length % colors.length],
-                          cx: Math.random() * 100,
-                          cy: Math.random() * 100,
-                        };
-                        setCircles([...circles, newCircle]);
-                        setNumCircles(circles.length + 1);
-                      }}
-                      disabled={numCircles >= 10}
-                    >
-                      <PlusIcon className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="p-0"
-                      onClick={resetPalette}
-                    >
-                      <RotateCcwIcon className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                {circles.map((circle, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-2 relative w-full"
-                  >
-                    <div
-                      className="flex items-center gap-2 w-full"
-                      onClick={() => {
-                        setActiveColorType("gradient");
-                        setActiveColor(i);
-                        setActiveColorPicker(circle.color);
-                      }}
-                    >
-                      <div className="flex items-center gap-2 relative w-full">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <span
-                              className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
-                              style={{ backgroundColor: circle.color }}
-                            />
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-3" align="start">
-                            <HexColorPicker
-                              color={activeColorPicker}
-                              onChange={(color) => {
-                                setActiveColorPicker(color);
-                                handleColorChange(color);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-
-                        <Input
-                          type="text"
-                          value={
-                            circle.color.startsWith("#")
-                              ? circle.color
-                              : `#${circle.color}`
-                          }
-                          className="w-full pl-10 pr-4"
-                          placeholder="Color"
-                          onChange={(e) => {
-                            const color = e.target.value.startsWith("#")
-                              ? e.target.value
-                              : `#${e.target.value}`;
-                            updateColor(color, i);
-                          }}
-                        />
-                        <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
-                          onClick={() => {
-                            setCircles(
-                              circles.filter((_, index) => index !== i)
-                            );
-                            setNumCircles(circles.length - 1);
-                          }}
-                        >
-                          <Trash2Icon className="size-4 text-muted-foreground hover:text-destructive transition-all duration-300" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+          <Separator className="my-2" />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 justify-between">
+              <label className="text-sm text-muted-foreground">Layers</label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  className="p-0"
+                  onClick={() => {
+                    const newCircle = {
+                      id: `blob-${Date.now()}`,
+                      name: `Blob ${circles.length + 1}`,
+                      color: colors[circles.length % colors.length],
+                      cx: Math.random() * 100,
+                      cy: Math.random() * 100,
+                      r: 22,
+                      visible: true,
+                      locked: false,
+                    };
+                    setCircles([...circles, newCircle]);
+                    setNumCircles(circles.length + 1);
+                  }}
+                  disabled={numCircles >= 10}
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+                <Button variant="ghost" className="p-0" onClick={resetPalette}>
+                  <RotateCcwIcon className="size-4" />
+                </Button>
               </div>
-            </>
-          )}
-        </div>
+            </div>
 
-        <div className="flex flex-col gap-2 w-full bg-secondary rounded-2xl p-4 border border-primary/10">
-          <PositionControl
-            value={textPosition}
-            onChange={setTextPosition}
-            width={resolution.width}
-            height={resolution.height}
-            className="max-w-[140px] max-h-[140px]"
-          />
+            <LayersPanel
+              circles={circles}
+              setCircles={setCircles}
+              selectedBlobIndex={selectedBlobIndex}
+              onSelectBlob={handleBlobSelect}
+              foregroundVisible={foregroundVisible}
+              setForegroundVisible={setForegroundVisible}
+              foregroundLocked={foregroundLocked}
+              setForegroundLocked={setForegroundLocked}
+              sizeMode={sizeMode}
+            />
+
+            {selectedBlobIndex !== null && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setCircles(
+                    circles.filter((_, index) => index !== selectedBlobIndex)
+                  );
+                  setNumCircles(Math.max(1, circles.length - 1));
+                  setSelectedBlobIndex(null);
+                }}
+              >
+                <Trash2Icon className="size-4" />
+                Remove Selected Layer
+              </Button>
+            )}
+          </div>
         </div>
       </aside>
 
