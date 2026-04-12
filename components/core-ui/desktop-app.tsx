@@ -3,8 +3,8 @@ import {
   DownloadIcon,
   Trash2Icon,
   UploadIcon,
-  PaintbrushIcon,
-  SparklesIcon,
+  TypeIcon,
+  PaletteIcon,
   ItalicIcon,
   UnderlineIcon,
   StrikethroughIcon,
@@ -16,13 +16,13 @@ import {
   AlignRightIcon,
   Undo,
   CopyIcon,
-  PlusIcon,
   ExpandIcon,
   ChevronRight,
   ShuffleIcon,
   RotateCcwIcon,
   ChevronUpIcon,
   ChevronDownIcon,
+  ImageIcon,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -40,7 +40,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { AppProps, RESOLUTION_PRESETS } from "@/lib/constants";
+import { AppProps, RESOLUTION_PRESETS, TextLayer, ImageLayer, BlobLayer } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useMemo, useRef, useState } from "react";
 import logo from "@/public/logo.svg";
@@ -48,7 +48,6 @@ import Image from "next/image";
 import { Textarea } from "../ui/textarea";
 import { CanvasPreview } from "./canvas-preview";
 import { toast } from "sonner";
-import { Separator } from "../ui/separator";
 import { Button } from "../ui/button";
 import { BlobCanvasControls } from "./blob-canvas-controls";
 import {
@@ -65,6 +64,16 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import VaulDrawer from "../ui/drawer";
 import { LayersPanel } from "./layers-panel";
+import { LayerRenderer } from "./layer-renderer";
+
+// Section header component for consistent styling
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+      {children}
+    </h3>
+  );
+}
 
 export default function DesktopApp({
   blur,
@@ -130,26 +139,28 @@ export default function DesktopApp({
   setIsUploading,
   textPosition,
   setTextPosition,
-  sizeMode,
-  logoImage,
-  setTextMode,
-  setLogoImage,
   textAlign,
   setTextAlign,
-  foregroundVisible,
-  setForegroundVisible,
-  foregroundLocked,
-  setForegroundLocked,
   copyImage,
   isCopying,
   handlePaletteChange,
   resetPalette,
+  // New layer system props
+  layers,
+  selectedLayerId,
+  editingLayerId,
+  addBlobLayer,
+  addTextLayer,
+  addImageLayer,
+  updateLayer,
+  deleteLayer,
+  moveLayer,
+  selectLayer,
+  setEditingLayer,
+  getSelectedLayer,
 }: AppProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
-  const [selectedBlobIndex, setSelectedBlobIndex] = useState<number | null>(
-    null
-  );
 
   const handleBackgroundImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>
@@ -161,18 +172,6 @@ export default function DesktopApp({
         setBackgroundImage(reader.result as string);
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setTextMode("image");
     }
   };
 
@@ -198,48 +197,44 @@ export default function DesktopApp({
   const [zoom, setZoom] = useState(0.4);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const handleForegroundDragStart = (
-    event: React.PointerEvent<HTMLElement | HTMLImageElement>
-  ) => {
-    if (!foregroundVisible || foregroundLocked) return;
-    event.preventDefault();
-    event.stopPropagation();
-
-    const startPointer = { x: event.clientX, y: event.clientY };
-    const startPosition = { ...textPosition };
-
-    const onMove = (moveEvent: PointerEvent) => {
-      moveEvent.preventDefault();
-      setTextPosition({
-        x: startPosition.x + (moveEvent.clientX - startPointer.x) / zoom,
-        y: startPosition.y + (moveEvent.clientY - startPointer.y) / zoom,
-      });
-    };
-
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
-
   const handleBlobSelect = (index: number | null) => {
-    setSelectedBlobIndex(index);
     if (index !== null) {
-      setActiveColorType("gradient");
-      setActiveColor(index);
-      setActiveColorPicker(circles[index].color);
+      const blobLayers = layers.filter((l) => l.type === "blob") as BlobLayer[];
+      if (blobLayers[index]) {
+        selectLayer(blobLayers[index].id);
+        setActiveColorType("gradient");
+        setActiveColor(index);
+        setActiveColorPicker(blobLayers[index].color);
+      }
+    } else {
+      selectLayer(null);
     }
   };
+
+  // Get selected layer and its type
+  const selectedLayer = getSelectedLayer();
+  const selectedLayerType = selectedLayer?.type ?? null;
+
+  // Get non-blob layers for rendering
+  const nonBlobLayers = layers.filter(
+    (l) => l.type !== "blob" && l.visible
+  ) as (TextLayer | ImageLayer)[];
+
+  // Get blob index for BlobCanvasControls
+  const blobLayers = layers.filter((l) => l.type === "blob") as BlobLayer[];
+  const selectedBlobIndex = selectedLayer?.type === "blob"
+    ? blobLayers.findIndex((b) => b.id === selectedLayer.id)
+    : null;
 
   return (
     <main className="relative flex gap-2 items-center justify-center p-2 h-screen w-full">
       <div aria-hidden="true" className="sr-only">
         {fontPreloadText}
       </div>
-      <aside className="flex flex-col gap-1 w-full max-w-[260px] min-w-[220px] h-full overflow-hidden">
+
+      {/* Left Sidebar - Controls */}
+      <aside className="flex flex-col gap-1 w-full max-w-[280px] min-w-[240px] h-full overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between gap-2 p-1 border border-primary/10 bg-secondary rounded-2xl">
           <button
             className="flex items-center gap-1 cursor-pointer p-1 hover:bg-foreground/5 transition-all duration-300 rounded-xl"
@@ -259,7 +254,7 @@ export default function DesktopApp({
             target="_blank"
           >
             <Button variant="ghost" size="icon">
-              <TwitterIcon className="size-4 " />
+              <TwitterIcon className="size-4" />
             </Button>
           </Link>
 
@@ -273,44 +268,44 @@ export default function DesktopApp({
             <SettingsDrawerContent setIsSettingsOpen={setIsSettingsOpen} />
           </VaulDrawer>
         </div>
+
+        {/* Tab Navigation */}
         <Tabs
           value={activeTab}
           onValueChange={(value) =>
-            setActiveTab(value as "design" | "canvas" | "effects")
+            setActiveTab(value as "text" | "style" | "layers")
           }
           className="flex flex-col items-center w-full"
         >
           <TabsList className="w-full flex items-center gap-1">
             <div className="flex items-center gap-1 w-full">
               {[
-                { id: "design", icon: PaintbrushIcon },
-                { id: "effects", icon: SparklesIcon },
-              ].map(({ id, icon: Icon }) => (
+                { id: "text", icon: TypeIcon, label: "Text" },
+                { id: "style", icon: PaletteIcon, label: "Style" },
+              ].map(({ id, icon: Icon, label }) => (
                 <TabsTrigger
                   key={id}
                   value={id}
                   className={cn(
                     "flex-1 relative w-full px-4 py-3 cursor-pointer hover:bg-foreground/25 transition-all duration-300 rounded-2xl text-foreground border border-primary/10 flex items-center gap-2"
                   )}
-                  disabled={!!backgroundImage && id === "colors"}
                 >
                   <Icon className="size-4" />
-                  <span className="text-xs tracking-tight capitalize">
-                    {id}
-                  </span>
+                  <span className="text-xs tracking-tight">{label}</span>
                 </TabsTrigger>
               ))}
             </div>
           </TabsList>
         </Tabs>
 
-        {/* controls */}
-        <section className="w-full bg-secondary rounded-2xl flex flex-col no-scrollbar overflow-hidden h-full  border border-primary/10 relative">
-          <div className="flex flex-col overflow-y-auto justify-between no-scrollbar relative h-full gap-2 p-2">
-            {activeTab === "design" && (
+        {/* Tab Content */}
+        <section className="w-full bg-secondary rounded-2xl flex flex-col no-scrollbar overflow-hidden h-full border border-primary/10 relative">
+          <div className="flex flex-col overflow-y-auto justify-between no-scrollbar relative h-full gap-2 p-3">
+            {/* TEXT TAB - Context-aware based on selected layer */}
+            {activeTab === "text" && (
               <motion.div
                 key={activeTab}
-                className="flex flex-col gap-8"
+                className="flex flex-col gap-6"
                 initial={{ y: 10 }}
                 animate={{ y: 0 }}
                 exit={{ y: -10 }}
@@ -319,315 +314,661 @@ export default function DesktopApp({
                   type: "spring",
                   damping: 10,
                   stiffness: 100,
-                  ease: "cubic-bezier(0.45, 0.05, 0.55, 0.95)",
                 }}
               >
-                <div className="flex flex-col gap-4 w-full">
-                  <div className="flex flex-col gap-2 w-full">
-                    <Textarea
-                      className={cn(
-                        "resize-none whitespace-pre-wrap",
-                        sizeMode === "image" && "opacity-50 cursor-not-allowed"
-                      )}
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      placeholder="Enter text"
-                      disabled={sizeMode === "image"}
-                    />
-                  </div>
+                {/* Selected Layer Info - Enhanced visual card */}
+                {selectedLayer && (
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 relative overflow-hidden">
+                    <div className="flex items-center gap-3">
+                      {/* Layer thumbnail/icon */}
+                      <div className={cn(
+                        "size-10 rounded-lg flex items-center justify-center shrink-0",
+                        selectedLayerType === "blob" && "bg-transparent",
+                        selectedLayerType === "text" && "bg-blue-500/20",
+                        selectedLayerType === "image" && "bg-green-500/20"
+                      )}>
+                        {selectedLayerType === "blob" && (
+                          <span
+                            className="size-8 rounded-lg"
+                            style={{ backgroundColor: (selectedLayer as BlobLayer).color }}
+                          />
+                        )}
+                        {selectedLayerType === "text" && (
+                          <TypeIcon className="size-5 text-blue-400" />
+                        )}
+                        {selectedLayerType === "image" && (
+                          <ImageIcon className="size-5 text-green-400" />
+                        )}
+                      </div>
 
-                  <div className="relative">
-                    <div className="flex items-center justify-center">
-                      <span className="bg-secondary px-2 text-xs text-muted-foreground">
-                        or
+                      {/* Layer info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {selectedLayer.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {selectedLayerType === "text" && "Double-click to edit on canvas"}
+                          {selectedLayerType === "blob" && "Drag to reposition"}
+                          {selectedLayerType === "image" && "Drag to reposition"}
+                        </p>
+                      </div>
+
+                      {/* Layer type badge */}
+                      <span className={cn(
+                        "text-[9px] px-2 py-1 rounded-full uppercase font-semibold shrink-0",
+                        selectedLayerType === "blob" && "bg-purple-500/20 text-purple-300",
+                        selectedLayerType === "text" && "bg-blue-500/20 text-blue-300",
+                        selectedLayerType === "image" && "bg-green-500/20 text-green-300"
+                      )}>
+                        {selectedLayerType}
                       </span>
                     </div>
-                    <div className="relative flex flex-col gap-2 pt-2">
-                      <label
-                        className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10  ${isUploading ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
-                      >
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            if (isUploading) return;
-                            setIsUploading(true);
-                            try {
-                              await handleImageUpload(e);
-                            } finally {
-                              setIsUploading(false);
-                              e.target.value = "";
-                            }
-                          }}
-                          className="hidden"
-                          disabled={isUploading}
-                        />
-                        {isUploading ? (
-                          <span className="animate-pulse">Uploading...</span>
-                        ) : (
-                          <>
-                            <UploadIcon className="size-4" />
-                            <span className="text-xs tracking-tight">
-                              {logoImage ? "Change Image" : "Upload Image"}
-                            </span>
-                          </>
-                        )}
-                      </label>
+                  </div>
+                )}
 
-                      {logoImage && (
-                        <Button
-                          onClick={() => {
-                            setLogoImage(null);
-                            setTextMode("text");
-                            setFontSize(10);
-                          }}
-                          variant="destructive"
-                        >
-                          <Trash2Icon className="size-4" />
-                          <span className="text-xs tracking-tight ml-2">
-                            Remove Image
-                          </span>
-                        </Button>
-                      )}
+                {/* No Layer Selected - Friendly empty state */}
+                {!selectedLayer && (
+                  <div className="p-6 rounded-xl bg-foreground/5 border border-dashed border-primary/20 text-center">
+                    <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <TypeIcon className="size-6 text-primary/60" />
+                    </div>
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      No layer selected
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Select a layer from canvas or layers panel to edit its properties
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={addTextLayer}
+                      >
+                        <TypeIcon className="size-3 mr-1" />
+                        Add Text
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="flex-1"
+                        onClick={() => {
+                          const input = document.createElement("input");
+                          input.type = "file";
+                          input.accept = "image/*";
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                addImageLayer(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          };
+                          input.click();
+                        }}
+                      >
+                        <ImageIcon className="size-3 mr-1" />
+                        Add Image
+                      </Button>
                     </div>
                   </div>
+                )}
 
-                  <Separator className="my-2" />
-
-                  {sizeMode === "text" && (
-                    <>
-                      <div className="flex flex-col gap-2 w-full">
-                        <label className="text-sm text-muted-foreground">
-                          Color
-                        </label>
-                        <div className="flex items-center gap-2 w-full relative">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <span
-                                className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
-                                style={{ backgroundColor: textColor }}
-                              />
-                            </PopoverTrigger>
-                            <PopoverContent
-                              className="w-auto p-3"
-                              align="start"
-                            >
-                              <HexColorPicker
-                                color={activeColorPicker}
-                                onChange={(color) => {
-                                  setActiveColorType("text");
-                                  setActiveColorPicker(color);
-                                  handleColorChange(color);
-                                }}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <Input
-                            className="pl-10"
-                            type="text"
-                            value={
-                              textColor.startsWith("#")
-                                ? textColor
-                                : `#${textColor}`
-                            }
-                            placeholder="Color"
-                            onChange={(e) => {
-                              const color = e.target.value.startsWith("#")
-                                ? e.target.value
-                                : `#${e.target.value}`;
-                              setTextColor(color);
+                {/* Blob Layer Selected */}
+                {selectedLayerType === "blob" && selectedLayer && (
+                  <div className="flex flex-col gap-3">
+                    <SectionHeader>Blob Color</SectionHeader>
+                    <div className="flex items-center gap-2 w-full relative">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <span
+                            className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
+                            style={{ backgroundColor: (selectedLayer as BlobLayer).color }}
+                          />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-3" align="start">
+                          <HexColorPicker
+                            color={(selectedLayer as BlobLayer).color}
+                            onChange={(color) => {
+                              updateLayer(selectedLayer.id, { color });
                             }}
                           />
-                        </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Input
+                        className="pl-10"
+                        type="text"
+                        value={(selectedLayer as BlobLayer).color}
+                        placeholder="Color"
+                        onChange={(e) => {
+                          const color = e.target.value.startsWith("#")
+                            ? e.target.value
+                            : `#${e.target.value}`;
+                          updateLayer(selectedLayer.id, { color });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Text Layer Selected */}
+                {selectedLayerType === "text" && selectedLayer && (
+                  <>
+                    {/* Content Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Content</SectionHeader>
+                      <Textarea
+                        className="resize-none whitespace-pre-wrap min-h-[80px]"
+                        value={(selectedLayer as TextLayer).content}
+                        onChange={(e) => {
+                          updateLayer(selectedLayer.id, { content: e.target.value });
+                          setText(e.target.value);
+                        }}
+                        placeholder="Enter text"
+                      />
+                    </div>
+
+                    {/* Typography Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Typography</SectionHeader>
+
+                      {/* Font Selector */}
+                      <div className="flex items-center gap-1">
+                        <Select
+                          value={(selectedLayer as TextLayer).fontFamily}
+                          onValueChange={(value) => {
+                            updateLayer(selectedLayer.id, { fontFamily: value });
+                            setFontFamily(value);
+                          }}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select font" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {fonts.map((font) => (
+                                <SelectItem key={font.name} value={font.name}>
+                                  <div style={{ fontFamily: `"${font.name}", sans-serif` }}>
+                                    {font.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            const currentFont = (selectedLayer as TextLayer).fontFamily;
+                            const i = fonts.findIndex((f) => f.name === currentFont);
+                            const prev = (i - 1 + fonts.length) % fonts.length;
+                            updateLayer(selectedLayer.id, { fontFamily: fonts[prev].name });
+                            setFontFamily(fonts[prev].name);
+                          }}
+                        >
+                          <ChevronUpIcon className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            const currentFont = (selectedLayer as TextLayer).fontFamily;
+                            const i = fonts.findIndex((f) => f.name === currentFont);
+                            const next = (i + 1) % fonts.length;
+                            updateLayer(selectedLayer.id, { fontFamily: fonts[next].name });
+                            setFontFamily(fonts[next].name);
+                          }}
+                        >
+                          <ChevronDownIcon className="size-4" />
+                        </Button>
                       </div>
 
-                      <div className="flex flex-col gap-2">
-                        <label className="text-sm text-muted-foreground">
-                          Font
-                        </label>
+                      {/* Color Picker */}
+                      <div className="flex items-center gap-2 w-full relative">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <span
+                              className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
+                              style={{ backgroundColor: (selectedLayer as TextLayer).textColor }}
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-3" align="start">
+                            <HexColorPicker
+                              color={(selectedLayer as TextLayer).textColor}
+                              onChange={(color) => {
+                                updateLayer(selectedLayer.id, { textColor: color });
+                                setTextColor(color);
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <Input
+                          className="pl-10"
+                          type="text"
+                          value={(selectedLayer as TextLayer).textColor}
+                          placeholder="Color"
+                          onChange={(e) => {
+                            const color = e.target.value.startsWith("#")
+                              ? e.target.value
+                              : `#${e.target.value}`;
+                            updateLayer(selectedLayer.id, { textColor: color });
+                            setTextColor(color);
+                          }}
+                        />
+                      </div>
 
+                      <Slider
+                        label="Size"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={[(selectedLayer as TextLayer).fontSize]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { fontSize: value });
+                          setFontSize(value);
+                        }}
+                        valueSubtext="em"
+                      />
+
+                      <Slider
+                        label="Weight"
+                        min={100}
+                        max={900}
+                        step={100}
+                        value={[(selectedLayer as TextLayer).fontWeight]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { fontWeight: value });
+                          setFontWeight(value);
+                        }}
+                        disabled={!fonts.find((f) => f.name === (selectedLayer as TextLayer).fontFamily)?.variable}
+                        className={cn(
+                          !fonts.find((f) => f.name === (selectedLayer as TextLayer).fontFamily)?.variable &&
+                            "cursor-not-allowed opacity-50"
+                        )}
+                      />
+
+                      <Slider
+                        label="Tracking"
+                        min={-0.1}
+                        max={0.1}
+                        step={0.01}
+                        value={[(selectedLayer as TextLayer).letterSpacing]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { letterSpacing: value });
+                          setLetterSpacing(value);
+                        }}
+                        valueSubtext="em"
+                      />
+
+                      <Slider
+                        label="Leading"
+                        min={0.5}
+                        max={2}
+                        step={0.1}
+                        value={[(selectedLayer as TextLayer).lineHeight]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { lineHeight: value });
+                          setLineHeight(value);
+                        }}
+                        valueSubtext="em"
+                      />
+                    </div>
+
+                    {/* Alignment & Style Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Alignment & Style</SectionHeader>
+                      <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-1">
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              updateLayer(selectedLayer.id, { textAlign: "left" });
+                              setTextAlign("left");
+                            }}
+                            className={cn(
+                              "flex-1",
+                              (selectedLayer as TextLayer).textAlign === "left" ? "bg-primary/20" : "bg-foreground/5"
+                            )}
+                          >
+                            <AlignLeftIcon className="size-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              updateLayer(selectedLayer.id, { textAlign: "center" });
+                              setTextAlign("center");
+                            }}
+                            className={cn(
+                              "flex-1",
+                              (selectedLayer as TextLayer).textAlign === "center" ? "bg-primary/20" : "bg-foreground/5"
+                            )}
+                          >
+                            <AlignCenterIcon className="size-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              updateLayer(selectedLayer.id, { textAlign: "right" });
+                              setTextAlign("right");
+                            }}
+                            className={cn(
+                              "flex-1",
+                              (selectedLayer as TextLayer).textAlign === "right" ? "bg-primary/20" : "bg-foreground/5"
+                            )}
+                          >
+                            <AlignRightIcon className="size-4" />
+                          </Button>
+                        </div>
+                        <div className="w-px h-6 bg-primary/10" />
                         <div className="flex items-center gap-1">
-                          <Select value={fontFamily} onValueChange={setFontFamily}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select font" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {fonts.map((font) => (
-                                  <SelectItem key={font.name} value={font.name}>
-                                    <div style={{ fontFamily: `"${font.name}", sans-serif` }}>
-                                      {font.name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-
                           <Button
-                            type="button"
-                            size="icon"
+                            size="sm"
                             onClick={() => {
-                              const i = fonts.findIndex((f) => f.name === fontFamily);
-                              const prev = (i - 1 + fonts.length) % fonts.length;
-                              setFontFamily(fonts[prev].name);
-                            }}>
-                            <ChevronUpIcon className="size-4" />
+                              const newValue = !(selectedLayer as TextLayer).isItalic;
+                              updateLayer(selectedLayer.id, { isItalic: newValue });
+                              setIsItalic(newValue);
+                            }}
+                            className={cn((selectedLayer as TextLayer).isItalic ? "bg-primary/20" : "bg-foreground/5")}
+                          >
+                            <ItalicIcon className="size-4" />
                           </Button>
-
                           <Button
-                            type="button"
-                            size="icon"
+                            size="sm"
                             onClick={() => {
-                              const i = fonts.findIndex((f) => f.name === fontFamily);
-                              const next = (i + 1) % fonts.length;
-                              setFontFamily(fonts[next].name);
-                            }}>
-                            <ChevronDownIcon className="size-4" />
-
+                              const newValue = !(selectedLayer as TextLayer).isUnderline;
+                              updateLayer(selectedLayer.id, { isUnderline: newValue });
+                              setIsUnderline(newValue);
+                            }}
+                            className={cn((selectedLayer as TextLayer).isUnderline ? "bg-primary/20" : "bg-foreground/5")}
+                          >
+                            <UnderlineIcon className="size-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              const newValue = !(selectedLayer as TextLayer).isStrikethrough;
+                              updateLayer(selectedLayer.id, { isStrikethrough: newValue });
+                              setIsStrikethrough(newValue);
+                            }}
+                            className={cn(
+                              (selectedLayer as TextLayer).isStrikethrough ? "bg-primary/20" : "bg-foreground/5"
+                            )}
+                          >
+                            <StrikethroughIcon className="size-4" />
                           </Button>
                         </div>
-
                       </div>
-                    </>
-                  )}
-                  {sizeMode === "text" && (
-                    <div className="flex flex-col gap-2 w-full">
-                      <label className="text-sm text-muted-foreground">
-                        Decoration
-                      </label>
-                      <div className="grid grid-cols-3 gap-1">
+                    </div>
+
+                    {/* Opacity */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Appearance</SectionHeader>
+                      <Slider
+                        label="Opacity"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[(selectedLayer as TextLayer).opacity]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { opacity: value });
+                          setOpacity(value);
+                        }}
+                        valueSubtext="%"
+                      />
+                    </div>
+
+                    {/* Glow Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Glow</SectionHeader>
+                      <div className="flex items-center gap-2 w-full relative">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <span
+                              className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
+                              style={{ backgroundColor: (selectedLayer as TextLayer).shadow.color }}
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-3" align="start">
+                            <HexColorPicker
+                              color={(selectedLayer as TextLayer).shadow.color}
+                              onChange={(color) => {
+                                updateLayer(selectedLayer.id, {
+                                  shadow: { ...(selectedLayer as TextLayer).shadow, color },
+                                });
+                                setTextShadow((prev) => ({ ...prev, color }));
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <Input
+                          className="pl-10"
+                          type="text"
+                          value={(selectedLayer as TextLayer).shadow.color}
+                          placeholder="Glow Color"
+                          onChange={(e) => {
+                            const color = e.target.value.startsWith("#")
+                              ? e.target.value
+                              : `#${e.target.value}`;
+                            updateLayer(selectedLayer.id, {
+                              shadow: { ...(selectedLayer as TextLayer).shadow, color },
+                            });
+                            setTextShadow((prev) => ({ ...prev, color }));
+                          }}
+                        />
+                      </div>
+
+                      <Slider
+                        label="Intensity"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[(selectedLayer as TextLayer).shadow.blur]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as TextLayer).shadow, blur: value },
+                          });
+                          setTextShadow((prev) => ({ ...prev, blur: value }));
+                        }}
+                        valueSubtext="%"
+                      />
+
+                      <Slider
+                        label="Offset X"
+                        min={-20}
+                        max={20}
+                        step={1}
+                        value={[(selectedLayer as TextLayer).shadow.offsetX]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as TextLayer).shadow, offsetX: value },
+                          });
+                          setTextShadow((prev) => ({ ...prev, offsetX: value }));
+                        }}
+                      />
+
+                      <Slider
+                        label="Offset Y"
+                        min={-20}
+                        max={20}
+                        step={1}
+                        value={[(selectedLayer as TextLayer).shadow.offsetY]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as TextLayer).shadow, offsetY: value },
+                          });
+                          setTextShadow((prev) => ({ ...prev, offsetY: value }));
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Image Layer Selected */}
+                {selectedLayerType === "image" && selectedLayer && (
+                  <>
+                    {/* Image Actions */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Image</SectionHeader>
+                      <div className="flex gap-2">
+                        <label className="flex-1">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  updateLayer(selectedLayer.id, { imageData: reader.result as string });
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                              e.target.value = "";
+                            }}
+                            className="hidden"
+                          />
+                          <Button size="sm" className="w-full" asChild>
+                            <span>
+                              <UploadIcon className="size-4 mr-1" />
+                              Change Image
+                            </span>
+                          </Button>
+                        </label>
                         <Button
-                          onClick={() => setTextAlign("left")}
-                          className={cn(
-                            textAlign === "left"
-                              ? "bg-primary/20"
-                              : "bg-background/5"
-                          )}
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteLayer(selectedLayer.id)}
                         >
-                          <AlignLeftIcon className="size-4" />
-                        </Button>
-                        <Button
-                          onClick={() => setTextAlign("center")}
-                          className={cn(
-                            textAlign === "center"
-                              ? "bg-primary/20"
-                              : "bg-background/5"
-                          )}
-                        >
-                          <AlignCenterIcon className="size-4" />
-                        </Button>
-                        <Button
-                          onClick={() => setTextAlign("right")}
-                          className={cn(
-                            textAlign === "right"
-                              ? "bg-primary/20"
-                              : "bg-background/5"
-                          )}
-                        >
-                          <AlignRightIcon className="size-4" />
-                        </Button>
-                        <Button
-                          onClick={() => setIsItalic(!isItalic)}
-                          className={cn(
-                            isItalic ? "bg-primary/20 " : "bg-background/5"
-                          )}
-                        >
-                          <ItalicIcon className="size-4" />
-                        </Button>
-                        <Button
-                          onClick={() => setIsUnderline(!isUnderline)}
-                          className={cn(
-                            isUnderline ? "bg-primary/20 " : "bg-background/5"
-                          )}
-                        >
-                          <UnderlineIcon className="size-4 mx-auto" />
-                        </Button>
-                        <Button
-                          onClick={() => setIsStrikethrough(!isStrikethrough)}
-                          className={cn(
-                            isStrikethrough
-                              ? "bg-primary/20"
-                              : "bg-background/5"
-                          )}
-                        >
-                          <StrikethroughIcon className="size-4" />
+                          <Trash2Icon className="size-4" />
                         </Button>
                       </div>
                     </div>
-                  )}
-                  <Slider
-                    label={sizeMode === "text" ? "Size" : "Size"}
-                    min={sizeMode === "text" ? 0 : 10}
-                    max={sizeMode === "text" ? 20 : 100}
-                    step={sizeMode === "text" ? 0.1 : 1}
-                    value={[fontSize]}
-                    onValueChange={([value]) => setFontSize(value)}
-                    valueSubtext={sizeMode === "text" ? "em" : "%"}
-                  />
-                  {sizeMode === "text" && (
-                    <>
-                      <div className="flex flex-col gap-2 w-full">
-                        <Slider
-                          label="Weight"
-                          min={100}
-                          max={900}
-                          step={100}
-                          value={[fontWeight]}
-                          onValueChange={([value]) => setFontWeight(value)}
-                          disabled={
-                            !fonts.find((f) => f.name === fontFamily)?.variable
-                          }
-                          className={cn(
-                            !fonts.find((f) => f.name === fontFamily)
-                              ?.variable && "cursor-not-allowed"
-                          )}
+
+                    {/* Size Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Size</SectionHeader>
+                      <Slider
+                        label="Scale"
+                        min={10}
+                        max={100}
+                        step={1}
+                        value={[(selectedLayer as ImageLayer).scale]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { scale: value });
+                        }}
+                        valueSubtext="%"
+                      />
+                    </div>
+
+                    {/* Opacity */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Appearance</SectionHeader>
+                      <Slider
+                        label="Opacity"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[(selectedLayer as ImageLayer).opacity]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, { opacity: value });
+                        }}
+                        valueSubtext="%"
+                      />
+                    </div>
+
+                    {/* Glow Section */}
+                    <div className="flex flex-col gap-3">
+                      <SectionHeader>Glow</SectionHeader>
+                      <div className="flex items-center gap-2 w-full relative">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <span
+                              className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
+                              style={{ backgroundColor: (selectedLayer as ImageLayer).shadow.color }}
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-3" align="start">
+                            <HexColorPicker
+                              color={(selectedLayer as ImageLayer).shadow.color}
+                              onChange={(color) => {
+                                updateLayer(selectedLayer.id, {
+                                  shadow: { ...(selectedLayer as ImageLayer).shadow, color },
+                                });
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <Input
+                          className="pl-10"
+                          type="text"
+                          value={(selectedLayer as ImageLayer).shadow.color}
+                          placeholder="Glow Color"
+                          onChange={(e) => {
+                            const color = e.target.value.startsWith("#")
+                              ? e.target.value
+                              : `#${e.target.value}`;
+                            updateLayer(selectedLayer.id, {
+                              shadow: { ...(selectedLayer as ImageLayer).shadow, color },
+                            });
+                          }}
                         />
                       </div>
 
-                      <div className="flex flex-col gap-2 w-full">
-                        <Slider
-                          label="Tracking"
-                          min={-0.1}
-                          max={0.1}
-                          step={0.01}
-                          value={[letterSpacing]}
-                          onValueChange={([value]) => setLetterSpacing(value)}
-                          valueSubtext="em"
-                        />
-                      </div>
+                      <Slider
+                        label="Intensity"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[(selectedLayer as ImageLayer).shadow.blur]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as ImageLayer).shadow, blur: value },
+                          });
+                        }}
+                        valueSubtext="%"
+                      />
 
-                      <div className="flex flex-col gap-2 w-full">
-                        <Slider
-                          label="Leading"
-                          min={0.5}
-                          max={2}
-                          step={0.1}
-                          value={[lineHeight]}
-                          onValueChange={([value]) => setLineHeight(value)}
-                          valueSubtext="em"
-                        />
-                      </div>
-                    </>
-                  )}
+                      <Slider
+                        label="Offset X"
+                        min={-20}
+                        max={20}
+                        step={1}
+                        value={[(selectedLayer as ImageLayer).shadow.offsetX]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as ImageLayer).shadow, offsetX: value },
+                          });
+                        }}
+                      />
 
-                  <Slider
-                    label="Opacity"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={[opacity]}
-                    onValueChange={([value]) => setOpacity(value)}
-                  />
-                </div>
+                      <Slider
+                        label="Offset Y"
+                        min={-20}
+                        max={20}
+                        step={1}
+                        value={[(selectedLayer as ImageLayer).shadow.offsetY]}
+                        onValueChange={([value]) => {
+                          updateLayer(selectedLayer.id, {
+                            shadow: { ...(selectedLayer as ImageLayer).shadow, offsetY: value },
+                          });
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </motion.div>
             )}
 
-            {activeTab === "effects" && (
+            {/* STYLE TAB */}
+            {activeTab === "style" && (
               <motion.div
                 key={activeTab}
-                className="flex flex-col gap-8"
+                className="flex flex-col gap-6"
                 initial={{ y: 10 }}
                 animate={{ y: 0 }}
                 exit={{ y: -10 }}
@@ -636,10 +977,113 @@ export default function DesktopApp({
                   type: "spring",
                   damping: 10,
                   stiffness: 100,
-                  ease: "cubic-bezier(0.45, 0.05, 0.55, 0.95)",
                 }}
               >
-                <div className="flex flex-col gap-4">
+                {/* Background Section */}
+                <div className="flex flex-col gap-3">
+                  <SectionHeader>Background</SectionHeader>
+                  <div className="flex items-center gap-2 relative">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <span
+                          className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
+                          style={{ backgroundColor: backgroundColor }}
+                        />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <HexColorPicker
+                          color={activeColorPicker}
+                          onChange={(color) => {
+                            setActiveColorType("background");
+                            setActiveColorPicker(color);
+                            setBackgroundColor(color);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      type="text"
+                      value={
+                        backgroundColor.startsWith("#")
+                          ? backgroundColor
+                          : `#${backgroundColor}`
+                      }
+                      placeholder="Background Color"
+                      onChange={(e) => {
+                        const color = e.target.value.startsWith("#")
+                          ? e.target.value
+                          : `#${e.target.value}`;
+                        setBackgroundColor(color);
+                      }}
+                      className={cn(
+                        "pl-10",
+                        backgroundImage && "opacity-50 cursor-not-allowed"
+                      )}
+                      disabled={!!backgroundImage}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-primary/10" />
+                    <span className="text-[10px] text-muted-foreground">or</span>
+                    <div className="flex-1 h-px bg-primary/10" />
+                  </div>
+
+                  <label
+                    className={cn(
+                      "px-4 py-2.5 bg-foreground/5 rounded-xl hover:bg-foreground/10 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10",
+                      isUploading && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      key={backgroundImage ? "has-image" : "no-image"}
+                      onChange={async (e) => {
+                        if (isUploading) return;
+                        setIsUploading(true);
+                        try {
+                          await handleBackgroundImageUpload(e);
+                        } finally {
+                          setIsUploading(false);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                    {isUploading ? (
+                      <span className="animate-pulse text-xs">Uploading...</span>
+                    ) : (
+                      <>
+                        <UploadIcon className="size-4" />
+                        <span className="text-xs tracking-tight">
+                          {backgroundImage ? "Change Image" : "Upload Image"}
+                        </span>
+                      </>
+                    )}
+                  </label>
+
+                  {backgroundImage && (
+                    <Button
+                      onClick={() => {
+                        setBackgroundImage(null);
+                        if (blur === 0) {
+                          setBlur(600);
+                        }
+                      }}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <Trash2Icon className="size-4" />
+                      <span className="text-xs ml-1">Remove Image</span>
+                    </Button>
+                  )}
+                </div>
+
+                {/* Gradient Section */}
+                <div className="flex flex-col gap-3">
+                  <SectionHeader>Gradient</SectionHeader>
                   <Slider
                     label="Blur"
                     min={backgroundImage ? 0 : 400}
@@ -651,24 +1095,21 @@ export default function DesktopApp({
                   />
 
                   {!isSafari && (
-                    <>
-                      <div className="flex flex-col gap-4">
-                        <Slider
-                          label="Grain"
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={[grainIntensity]}
-                          onValueChange={([value]) => {
-                            setGrainIntensity(value);
-                          }}
-                        />
-                      </div>
-                    </>
+                    <Slider
+                      label="Grain"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[grainIntensity]}
+                      onValueChange={([value]) => setGrainIntensity(value)}
+                      valueSubtext="%"
+                    />
                   )}
+                </div>
 
-                  <Separator className="my-2" />
-
+                {/* Adjustments Section */}
+                <div className="flex flex-col gap-3">
+                  <SectionHeader>Adjustments</SectionHeader>
                   <Slider
                     label="Saturation"
                     min={0}
@@ -676,6 +1117,7 @@ export default function DesktopApp({
                     step={1}
                     value={[saturation]}
                     onValueChange={([value]) => setSaturation(value)}
+                    valueSubtext="%"
                   />
                   <Slider
                     label="Contrast"
@@ -684,6 +1126,7 @@ export default function DesktopApp({
                     step={1}
                     value={[contrast]}
                     onValueChange={([value]) => setContrast(value)}
+                    valueSubtext="%"
                   />
                   <Slider
                     label="Brightness"
@@ -692,125 +1135,27 @@ export default function DesktopApp({
                     step={1}
                     value={[brightness]}
                     onValueChange={([value]) => setBrightness(value)}
+                    valueSubtext="%"
                   />
-
-                  <Separator className="my-2" />
-
-                  <label className="text-sm text-muted-foreground">Glow</label>
-                  <div className="flex items-center gap-2 w-full relative">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <span
-                          className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
-                          style={{ backgroundColor: textShadow.color }}
-                        />
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <HexColorPicker
-                          color={textShadow.color}
-                          onChange={(color) =>
-                            setTextShadow((prev) => ({ ...prev, color }))
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Input
-                      className="pl-10"
-                      type="text"
-                      value={
-                        textShadow.color.startsWith("#")
-                          ? textShadow.color
-                          : `#${textShadow.color}`
-                      }
-                      placeholder="Glow Color"
-                      onChange={(e) => {
-                        const color = e.target.value.startsWith("#")
-                          ? e.target.value
-                          : `#${e.target.value}`;
-                        setTextShadow((prev) => ({
-                          ...prev,
-                          color: color,
-                        }));
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Slider
-                      label="Intensity"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={[textShadow.blur]}
-                      onValueChange={([value]) =>
-                        setTextShadow((prev) => ({
-                          ...prev,
-                          blur: value, // Store as percentage
-                        }))
-                      }
-                      valueSubtext="%"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Slider
-                      label="Offset X"
-                      min={-20}
-                      max={20}
-                      step={1}
-                      value={[textShadow.offsetX]}
-                      onValueChange={([value]) =>
-                        setTextShadow((prev) => ({ ...prev, offsetX: value }))
-                      }
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Slider
-                      label="Offset Y"
-                      min={-20}
-                      max={20}
-                      step={1}
-                      value={[textShadow.offsetY]}
-                      onValueChange={([value]) =>
-                        setTextShadow((prev) => ({ ...prev, offsetY: value }))
-                      }
-                    />
-                  </div>
                 </div>
               </motion.div>
             )}
           </div>
-          <div className="flex w-full gap-2 p-2 sticky bottom-0  border-t border-primary/10  z-10">
-            <Button
-              className="flex items-center w-full"
-              variant="accent"
-              onClick={downloadImage}
-              disabled={isDownloading}
-            >
-              <DownloadIcon className="size-4" />
-              <span className="text-sm">Download</span>
-            </Button>
-
-            <Button onClick={copyImage} disabled={isCopying} className="w-fit">
-              <CopyIcon className="size-4" />
-            </Button>
-          </div>
         </section>
       </aside>
 
-      {/* preview section */}
+      {/* Canvas Preview Section */}
       <section
         ref={containerRef}
         className="flex flex-col gap-4 w-full h-full items-center justify-center relative bg-secondary rounded-2xl border border-primary/10 overflow-hidden"
       >
+        {/* Action Bar */}
         <div className="absolute bottom-4 right-0 left-0 flex items-center gap-2 z-10 justify-center">
           <Button
             variant="accent"
             className="w-fit"
             onClick={() => {
-              const hasSeenWarning = localStorage.getItem(
-                "generate-warning-seen"
-              );
+              const hasSeenWarning = localStorage.getItem("generate-warning-seen");
               if (!hasSeenWarning) {
                 setShowGenerateConfirm(true);
                 return;
@@ -875,9 +1220,10 @@ export default function DesktopApp({
           </Button>
         </div>
 
+        {/* Canvas */}
         <div
-          className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative "
-          onClick={() => setSelectedBlobIndex(null)}
+          className="rounded-2xl overflow-hidden w-full h-full flex items-center justify-center relative"
+          onClick={() => selectLayer(null)}
         >
           <div
             className="relative overflow-hidden rounded-2xl"
@@ -886,397 +1232,240 @@ export default function DesktopApp({
               width: resolution.width * zoom,
             }}
           >
-                <div
-                  id="wallpaper"
-                  style={{
-                    width: `${resolution.width}px`,
-                    height: `${resolution.height}px`,
-                    transform: `scale(${zoom})`,
-                    transformOrigin: "top left",
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                  }}
-                >
-                  {isGenerating ? (
-                    <div className="absolute inset-0 bg-background z-50 flex items-center justify-center">
-                      <WandSparklesIcon className="size-16 text-primary animate-ping" />
-                    </div>
-                  ) : (
-                    <>
-                      <CanvasPreview />
-                      <BlobCanvasControls
-                        circles={circles}
-                        setCircles={setCircles}
-                        selectedBlobIndex={selectedBlobIndex}
-                        onSelectBlob={handleBlobSelect}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center z-40">
-                        {foregroundVisible && (sizeMode === "text" ? (
-                          <p
-                            onPointerDown={handleForegroundDragStart}
-                            style={{
-                              fontSize: `${fontSize}em`,
-                              fontWeight: fontWeight,
-                              letterSpacing: `${letterSpacing}em`,
-                              fontFamily: fontFamily,
-                              opacity: opacity / 100,
-                              lineHeight: lineHeight,
-                              color: textColor,
-                              fontStyle: isItalic ? "italic" : "normal",
-                              textDecoration: `${isUnderline ? "underline" : ""
-                                } ${isStrikethrough ? "line-through" : ""
-                                }`.trim(),
-                              textShadow: `${textShadow.offsetX}px ${textShadow.offsetY}px ${textShadow.blur}px ${textShadow.color}`,
-                              transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
-                              whiteSpace: "pre-wrap",
-                              textWrap: "nowrap",
-                              textAlign: textAlign,
-                              cursor: foregroundLocked ? "not-allowed" : "grab",
-                            }}
-                            className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
-                          >
-                            {text}
-                          </p>
-                        ) : (
-                          logoImage && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={logoImage}
-                              onPointerDown={handleForegroundDragStart}
-                              className="transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]"
-                              alt="Logo"
-                              style={{
-                                maxWidth: `${fontSize}%`,
-                                maxHeight: `${fontSize}%`,
-                                opacity: opacity / 100,
-                                transform: `translate(${textPosition.x}px, ${textPosition.y}px)`,
-                                filter: `drop-shadow(${textShadow.offsetX}px ${textShadow.offsetY}px ${textShadow.blur}px ${textShadow.color})`,
-                                cursor: foregroundLocked ? "not-allowed" : "grab",
-                              }}
-                            />
-                          )
-                        ))}
-                      </div>
-                    </>
-                  )}
+            <div
+              id="wallpaper"
+              style={{
+                width: `${resolution.width}px`,
+                height: `${resolution.height}px`,
+                transform: `scale(${zoom})`,
+                transformOrigin: "top left",
+                backfaceVisibility: "hidden",
+                WebkitBackfaceVisibility: "hidden",
+              }}
+            >
+              {isGenerating ? (
+                <div className="absolute inset-0 bg-background z-50 flex items-center justify-center">
+                  <WandSparklesIcon className="size-16 text-primary animate-ping" />
                 </div>
+              ) : (
+                <>
+                  <CanvasPreview />
+                  <BlobCanvasControls
+                    circles={circles}
+                    setCircles={setCircles}
+                    selectedBlobIndex={selectedBlobIndex}
+                    onSelectBlob={handleBlobSelect}
+                  />
+                  {/* Text/Image layers overlay */}
+                  <div className="absolute inset-0 z-40">
+                    {nonBlobLayers
+                      .sort((a, b) => a.zIndex - b.zIndex)
+                      .map((layer) => (
+                        <LayerRenderer
+                          key={layer.id}
+                          layer={layer}
+                          isSelected={selectedLayerId === layer.id}
+                          isEditing={editingLayerId === layer.id}
+                          onSelect={() => selectLayer(layer.id)}
+                          onStartEdit={() => setEditingLayer(layer.id)}
+                          onEndEdit={() => setEditingLayer(null)}
+                          onDrag={(pos) => updateLayer(layer.id, { position: pos })}
+                          onTextChange={(text) => {
+                            updateLayer(layer.id, { content: text });
+                            setText(text);
+                          }}
+                          zoom={zoom}
+                        />
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* right controls */}
+      {/* Right Sidebar - Resolution, Layers, Export */}
       <aside className="flex flex-col gap-2 w-full max-w-[260px] min-w-[200px] h-full overflow-hidden">
-        <div className="flex flex-col gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button className="w-full flex">
-                <div className="flex items-center gap-2 justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-full min-w-4 min-h-4 border border-primary rounded"
-                      style={{
-                        aspectRatio: `${resolution.width}/${resolution.height}`,
-                      }}
-                    />
-
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm tracking-tight text-left">
-                        {RESOLUTION_PRESETS.find(
-                          (preset) =>
-                            preset.width === resolution.width &&
-                            preset.height === resolution.height
-                        )?.name || "Custom"}
-                      </p>
-                      <p className="text-xs text-muted-foreground text-left">
-                        {resolution.width}x{resolution.height}
-                      </p>
-                    </div>
+        {/* Resolution Picker */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button className="w-full flex">
+              <div className="flex items-center gap-2 justify-between w-full">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-full min-w-4 min-h-4 border border-primary rounded"
+                    style={{
+                      aspectRatio: `${resolution.width}/${resolution.height}`,
+                    }}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm tracking-tight text-left">
+                      {RESOLUTION_PRESETS.find(
+                        (preset) =>
+                          preset.width === resolution.width &&
+                          preset.height === resolution.height
+                      )?.name || "Custom"}
+                    </p>
+                    <p className="text-xs text-muted-foreground text-left">
+                      {resolution.width}x{resolution.height}
+                    </p>
                   </div>
-
-                  <ExpandIcon
-                    className={`size-4 transition-all duration-300`}
-                  />
                 </div>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="max-w-lg w-full border border-primary/10 bg-secondary p-0 h-[400px] overflow-y-auto no-scrollbar rounded-2xl">
-              <div className="flex items-center gap-2 p-4 border-b border-primary/10 sticky top-0 bg-secondary">
-                <div className="flex flex-col w-full gap-1 relative">
-                  <label className="text-xs text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
-                    W:
-                  </label>
-                  <Input
-                    className="pl-8"
-                    type="number"
-                    min={0}
-                    max={2560}
-                    defaultValue={resolution.width}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (value > 2560) {
-                        toast.error("Maximum width is 2560px");
-                        return;
-                      }
-                      e.target.value = value.toString();
-                    }}
-                    id="width-input"
-                  />
-                </div>
-                <div className="flex flex-col gap-1 w-full relative">
-                  <label className="text-xs text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
-                    H:
-                  </label>
-                  <Input
-                    className="pl-8"
-                    type="number"
-                    min={0}
-                    max={2560}
-                    defaultValue={resolution.height}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (value > 2560) {
-                        toast.error("Maximum height is 2560px");
-                        return;
-                      }
-                      e.target.value = value.toString();
-                    }}
-                    id="height-input"
-                  />
-                </div>
-                <Button
-                  className="w-fit"
-                  variant="accent"
-                  onClick={() => {
-                    const width = parseInt(
-                      (
-                        document.getElementById(
-                          "width-input"
-                        ) as HTMLInputElement
-                      ).value
-                    );
-                    const height = parseInt(
-                      (
-                        document.getElementById(
-                          "height-input"
-                        ) as HTMLInputElement
-                      ).value
-                    );
-                    if (width > 2560 || height > 2560) {
-                      toast.error("Maximum dimensions are 2560px");
+                <ExpandIcon className="size-4 transition-all duration-300" />
+              </div>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="max-w-lg w-full border border-primary/10 bg-secondary p-0 h-[400px] overflow-y-auto no-scrollbar rounded-2xl">
+            <div className="flex items-center gap-2 p-4 border-b border-primary/10 sticky top-0 bg-secondary">
+              <div className="flex flex-col w-full gap-1 relative">
+                <label className="text-xs text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
+                  W:
+                </label>
+                <Input
+                  className="pl-8"
+                  type="number"
+                  min={0}
+                  max={2560}
+                  defaultValue={resolution.width}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (value > 2560) {
+                      toast.error("Maximum width is 2560px");
                       return;
                     }
-                    setResolution({ width, height });
+                    e.target.value = value.toString();
                   }}
-                >
-                  Apply
-                </Button>
-              </div>
-              <div className="flex flex-col gap-6 p-4">
-                {Array.from(
-                  new Set(RESOLUTION_PRESETS.map((preset) => preset.category))
-                ).map((category) => (
-                  <div key={category} className="flex flex-col gap-2">
-                    <p className="text-xs text-muted-foreground">{category}</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {RESOLUTION_PRESETS.filter(
-                        (preset) => preset.category === category
-                      ).map((preset) => (
-                        <div
-                          key={preset.name}
-                          onClick={() =>
-                            setResolution({
-                              width: preset.width,
-                              height: preset.height,
-                            })
-                          }
-                          className="flex flex-col items-center gap-4 cursor-pointer bg-foreground/5 rounded-xl p-2 border border-primary/10 hover:bg-foreground/10 transition-all duration-300 justify-between"
-                        >
-                          <div className="flex flex-col gap-2 items-center">
-                            <p className="tracking-tight text-left font-medium">
-                              {preset.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              ({preset.width}x{preset.height})
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-        <div className="flex flex-col gap-4 overflow-y-auto h-full no-scrollbar rounded-2xl bg-secondary border border-primary/10 p-2">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 w-full">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm text-muted-foreground">
-                  Background
-                </label>
-                <div className="flex items-center gap-2 relative">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <span
-                        className="w-6 h-6 rounded-full cursor-pointer aspect-square border border-primary/10 absolute left-2 top-1/2 -translate-y-1/2"
-                        style={{ backgroundColor: backgroundColor }}
-                      />
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-3" align="start">
-                      <HexColorPicker
-                        color={activeColorPicker}
-                        onChange={(color) => {
-                          setActiveColorType("background");
-                          setActiveColorPicker(color);
-                          setBackgroundColor(color);
-                        }}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Input
-                    type="text"
-                    value={
-                      backgroundColor.startsWith("#")
-                        ? backgroundColor
-                        : `#${backgroundColor}`
-                    }
-                    placeholder="Background Color"
-                    onChange={(e) => {
-                      const color = e.target.value.startsWith("#")
-                        ? e.target.value
-                        : `#${e.target.value}`;
-                      setBackgroundColor(color);
-                    }}
-                    className={cn(
-                      "resize-none pl-10",
-                      backgroundImage && "opacity-50 cursor-not-allowed"
-                    )}
-                    disabled={!!backgroundImage}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-center">
-              <span className="bg-secondary px-2 text-xs text-muted-foreground">
-                or
-              </span>
-            </div>
-            <div className="relative">
-              <label
-                className={`px-4 py-2 bg-foreground/5 rounded-xl hover:text-foreground/80 text-primary transition-all duration-300 flex items-center gap-2 cursor-pointer justify-center border border-primary/10 ${isUploading ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-              >
-                <Input
-                  type="file"
-                  accept="image/*"
-                  key={backgroundImage ? "has-image" : "no-image"}
-                  onChange={async (e) => {
-                    if (isUploading) return;
-                    setIsUploading(true);
-                    try {
-                      await handleBackgroundImageUpload(e);
-                    } finally {
-                      setIsUploading(false);
-                      e.target.value = "";
-                    }
-                  }}
-                  className="hidden"
-                  disabled={isUploading}
+                  id="width-input"
                 />
-                {isUploading ? (
-                  <span className="animate-pulse">Uploading...</span>
-                ) : (
-                  <>
-                    <UploadIcon className="size-4" />
-                    <span className="text-xs tracking-tight">
-                      {backgroundImage ? "Change Image" : "Upload Image"}
-                    </span>
-                  </>
-                )}
-              </label>
-
-              {backgroundImage && (
-                <Button
-                  onClick={() => {
-                    setBackgroundImage(null);
-                    if (blur === 0) {
-                      setBlur(600);
-                    }
-                  }}
-                  className="rounded-xl mt-2 w-full"
-                  variant="destructive"
-                >
-                  <Trash2Icon className="size-4" />
-                  <span className="text-xs tracking-tight">Remove Image</span>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <Separator className="my-2" />
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 justify-between">
-              <label className="text-sm text-muted-foreground">Layers</label>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  className="p-0"
-                  onClick={() => {
-                    const newCircle = {
-                      id: `blob-${Date.now()}`,
-                      name: `Blob ${circles.length + 1}`,
-                      color: colors[circles.length % colors.length],
-                      cx: Math.random() * 100,
-                      cy: Math.random() * 100,
-                      r: 22,
-                      visible: true,
-                      locked: false,
-                    };
-                    setCircles([...circles, newCircle]);
-                    setNumCircles(circles.length + 1);
-                  }}
-                  disabled={numCircles >= 10}
-                >
-                  <PlusIcon className="size-4" />
-                </Button>
-                <Button variant="ghost" className="p-0" onClick={resetPalette}>
-                  <RotateCcwIcon className="size-4" />
-                </Button>
               </div>
+              <div className="flex flex-col gap-1 w-full relative">
+                <label className="text-xs text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
+                  H:
+                </label>
+                <Input
+                  className="pl-8"
+                  type="number"
+                  min={0}
+                  max={2560}
+                  defaultValue={resolution.height}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (value > 2560) {
+                      toast.error("Maximum height is 2560px");
+                      return;
+                    }
+                    e.target.value = value.toString();
+                  }}
+                  id="height-input"
+                />
+              </div>
+              <Button
+                className="w-fit"
+                variant="accent"
+                onClick={() => {
+                  const width = parseInt(
+                    (document.getElementById("width-input") as HTMLInputElement)
+                      .value
+                  );
+                  const height = parseInt(
+                    (document.getElementById("height-input") as HTMLInputElement)
+                      .value
+                  );
+                  if (width > 2560 || height > 2560) {
+                    toast.error("Maximum dimensions are 2560px");
+                    return;
+                  }
+                  setResolution({ width, height });
+                }}
+              >
+                Apply
+              </Button>
+            </div>
+            <div className="flex flex-col gap-6 p-4">
+              {Array.from(
+                new Set(RESOLUTION_PRESETS.map((preset) => preset.category))
+              ).map((category) => (
+                <div key={category} className="flex flex-col gap-2">
+                  <p className="text-xs text-muted-foreground">{category}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {RESOLUTION_PRESETS.filter(
+                      (preset) => preset.category === category
+                    ).map((preset) => (
+                      <div
+                        key={preset.name}
+                        onClick={() =>
+                          setResolution({
+                            width: preset.width,
+                            height: preset.height,
+                          })
+                        }
+                        className="flex flex-col items-center gap-4 cursor-pointer bg-foreground/5 rounded-xl p-2 border border-primary/10 hover:bg-foreground/10 transition-all duration-300 justify-between"
+                      >
+                        <div className="flex flex-col gap-2 items-center">
+                          <p className="tracking-tight text-left font-medium">
+                            {preset.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            ({preset.width}x{preset.height})
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Layers Panel */}
+        <div className="flex flex-col gap-4 overflow-y-auto h-full no-scrollbar rounded-2xl bg-secondary border border-primary/10 p-3">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 justify-between">
+              <SectionHeader>Layers</SectionHeader>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={resetPalette}
+              >
+                <RotateCcwIcon className="size-4" />
+              </Button>
             </div>
 
             <LayersPanel
-              circles={circles}
-              setCircles={setCircles}
-              selectedBlobIndex={selectedBlobIndex}
-              onSelectBlob={handleBlobSelect}
-              foregroundVisible={foregroundVisible}
-              setForegroundVisible={setForegroundVisible}
-              foregroundLocked={foregroundLocked}
-              setForegroundLocked={setForegroundLocked}
-              sizeMode={sizeMode}
+              layers={layers}
+              selectedLayerId={selectedLayerId}
+              onSelectLayer={selectLayer}
+              onUpdateLayer={updateLayer}
+              onMoveLayer={moveLayer}
+              onDeleteLayer={deleteLayer}
+              onAddBlobLayer={addBlobLayer}
+              onAddTextLayer={addTextLayer}
+              onAddImageLayer={addImageLayer}
             />
-
-            {selectedBlobIndex !== null && (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setCircles(
-                    circles.filter((_, index) => index !== selectedBlobIndex)
-                  );
-                  setNumCircles(Math.max(1, circles.length - 1));
-                  setSelectedBlobIndex(null);
-                }}
-              >
-                <Trash2Icon className="size-4" />
-                Remove Selected Layer
-              </Button>
-            )}
           </div>
+        </div>
+
+        {/* Export Section */}
+        <div className="flex w-full gap-2 p-2 border border-primary/10 bg-secondary rounded-2xl">
+          <Button
+            className="flex items-center w-full"
+            variant="accent"
+            onClick={downloadImage}
+            disabled={isDownloading}
+          >
+            <DownloadIcon className="size-4" />
+            <span className="text-sm">Download</span>
+          </Button>
+          <Button onClick={copyImage} disabled={isCopying} className="w-fit">
+            <CopyIcon className="size-4" />
+          </Button>
         </div>
       </aside>
 
+      {/* Generate Confirmation Dialog */}
       <Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
         <DialogContent>
           <DialogHeader>

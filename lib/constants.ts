@@ -9,6 +9,65 @@ export interface CircleProps {
   locked?: boolean;
 }
 
+// Base layer properties shared by all layer types
+export interface BaseLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  locked: boolean;
+  zIndex: number;
+}
+
+// Blob layer (gradient circle)
+export interface BlobLayer extends BaseLayer {
+  type: "blob";
+  color: string;
+  cx: number; // percentage position
+  cy: number;
+  r: number;
+}
+
+// Text layer
+export interface TextLayer extends BaseLayer {
+  type: "text";
+  position: { x: number; y: number };
+  content: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: number;
+  letterSpacing: number;
+  lineHeight: number;
+  textColor: string;
+  textAlign: "left" | "center" | "right";
+  isItalic: boolean;
+  isUnderline: boolean;
+  isStrikethrough: boolean;
+  opacity: number;
+  shadow: {
+    color: string;
+    blur: number;
+    offsetX: number;
+    offsetY: number;
+  };
+}
+
+// Image layer
+export interface ImageLayer extends BaseLayer {
+  type: "image";
+  position: { x: number; y: number };
+  imageData: string; // base64
+  scale: number; // percentage (10-100)
+  opacity: number;
+  shadow: {
+    color: string;
+    blur: number;
+    offsetX: number;
+    offsetY: number;
+  };
+}
+
+export type Layer = BlobLayer | TextLayer | ImageLayer;
+
 export interface FontOption {
   name: string;
   variable: boolean;
@@ -305,8 +364,8 @@ export interface AppProps {
   previousCircles: CircleProps[];
   setCircles: (circles: CircleProps[]) => void;
   setPreviousCircles: (circles: CircleProps[]) => void;
-  setActiveTab: (tab: "design" | "canvas" | "effects") => void;
-  activeTab: "design" | "canvas" | "effects";
+  setActiveTab: (tab: "text" | "style" | "layers") => void;
+  activeTab: "text" | "style" | "layers";
   setText: (text: string) => void;
   setFontFamily: (fontFamily: string) => void;
   setFontSize: (fontSize: number) => void;
@@ -381,4 +440,21 @@ export interface AppProps {
   setIsCopying: (isCopying: boolean) => void;
   handlePaletteChange: () => void;
   resetPalette: () => void;
+
+  // Unified Layer System
+  layers: Layer[];
+  selectedLayerId: string | null;
+  editingLayerId: string | null;
+  addBlobLayer: () => void;
+  addTextLayer: () => void;
+  addImageLayer: (imageData: string) => void;
+  updateLayer: <T extends Layer>(id: string, updates: Partial<T>) => void;
+  deleteLayer: (id: string) => void;
+  moveLayer: (id: string, direction: "up" | "down") => void;
+  selectLayer: (id: string | null) => void;
+  setEditingLayer: (id: string | null) => void;
+  getBlobLayers: () => BlobLayer[];
+  getTextLayers: () => TextLayer[];
+  getImageLayers: () => ImageLayer[];
+  getSelectedLayer: () => Layer | null;
 }

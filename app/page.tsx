@@ -3,7 +3,7 @@ import DesktopApp from "@/components/core-ui/desktop-app";
 import MobileApp from "@/components/core-ui/mobile-app";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FONTS } from "@/lib/constants";
+import { FONTS, TextLayer, ImageLayer } from "@/lib/constants";
 import { useWallpaperStore } from "@/store/wallpaper";
 import { useSafariCheck } from "@/hooks/use-safari-check";
 
@@ -46,6 +46,115 @@ export default function Home() {
     }
   }, [shouldShowPWAPrompt]);
 
+  // Helper function to draw a text layer on canvas
+  const drawTextLayer = (ctx: CanvasRenderingContext2D, layer: TextLayer) => {
+    if (!layer.visible) return;
+
+    ctx.save();
+
+    // Set font properties
+    const fontString = `${layer.isItalic ? "italic" : ""} ${
+      layer.fontWeight
+    } ${layer.fontSize * 16}px ${layer.fontFamily}`;
+    ctx.font = fontString;
+    ctx.fillStyle = layer.textColor;
+    ctx.textAlign = layer.textAlign as CanvasTextAlign;
+    ctx.textBaseline = "middle";
+    ctx.globalAlpha = layer.opacity / 100;
+
+    // Set text shadow
+    if (layer.shadow.blur > 0) {
+      ctx.shadowColor = layer.shadow.color;
+      ctx.shadowBlur = layer.shadow.blur;
+      ctx.shadowOffsetX = layer.shadow.offsetX;
+      ctx.shadowOffsetY = layer.shadow.offsetY;
+    }
+
+    // Calculate text position
+    let x = store.resolution.width / 2 + layer.position.x;
+    if (layer.textAlign === "left") {
+      x = 20 + layer.position.x;
+    } else if (layer.textAlign === "right") {
+      x = store.resolution.width - 20 + layer.position.x;
+    }
+
+    // Handle multiline text
+    const lines = layer.content.split("\n");
+    const lineHeight = layer.fontSize * 16 * layer.lineHeight;
+    const totalHeight = lines.length * lineHeight;
+    const startY =
+      store.resolution.height / 2 - totalHeight / 2 + layer.position.y;
+
+    lines.forEach((line, index) => {
+      const y = startY + index * lineHeight + lineHeight / 2;
+      ctx.fillText(line, x, y);
+
+      // Draw text decorations
+      if (layer.isUnderline || layer.isStrikethrough) {
+        const textMetrics = ctx.measureText(line);
+        const textWidth = textMetrics.width;
+        let decorationY = y;
+
+        if (layer.isUnderline) {
+          decorationY = y + textMetrics.actualBoundingBoxDescent + 2;
+        }
+        if (layer.isStrikethrough) {
+          decorationY = y;
+        }
+
+        let startX = x;
+        if (layer.textAlign === "center") {
+          startX = x - textWidth / 2;
+        } else if (layer.textAlign === "right") {
+          startX = x - textWidth;
+        }
+
+        ctx.beginPath();
+        ctx.strokeStyle = layer.textColor;
+        ctx.lineWidth = Math.max(1, layer.fontSize * 0.05);
+        ctx.moveTo(startX, decorationY);
+        ctx.lineTo(startX + textWidth, decorationY);
+        ctx.stroke();
+      }
+    });
+
+    ctx.restore();
+  };
+
+  // Helper function to draw an image layer on canvas
+  const drawImageLayer = async (
+    ctx: CanvasRenderingContext2D,
+    layer: ImageLayer
+  ): Promise<void> => {
+    if (!layer.visible || !layer.imageData) return;
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = (store.resolution.width * layer.scale) / 100;
+        const maxHeight = (store.resolution.height * layer.scale) / 100;
+        const scale = Math.min(maxWidth / img.width, maxHeight / img.height);
+        const width = img.width * scale;
+        const height = img.height * scale;
+
+        ctx.save();
+        ctx.globalAlpha = layer.opacity / 100;
+        ctx.filter = `drop-shadow(${layer.shadow.offsetX}px ${layer.shadow.offsetY}px ${layer.shadow.blur}px ${layer.shadow.color})`;
+        ctx.drawImage(
+          img,
+          store.resolution.width / 2 - width / 2 + layer.position.x,
+          store.resolution.height / 2 - height / 2 + layer.position.y,
+          width,
+          height
+        );
+        ctx.restore();
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = layer.imageData;
+    });
+  };
+
   const downloadImage = async () => {
     try {
       const previewCanvas = document.querySelector(
@@ -58,7 +167,7 @@ export default function Home() {
       tempCanvas.height = store.resolution.height;
       const ctx = tempCanvas.getContext("2d")!;
 
-      // Draw the preview canvas
+      // Draw the preview canvas (blobs)
       ctx.drawImage(
         previewCanvas,
         0,
@@ -67,104 +176,18 @@ export default function Home() {
         store.resolution.height
       );
 
-      // Draw the text
-      if (store.sizeMode === "text") {
-        ctx.save();
+      // Get all non-blob layers sorted by zIndex
+      const nonBlobLayers = store.layers
+        .filter((l) => l.type !== "blob" && l.visible)
+        .sort((a, b) => a.zIndex - b.zIndex);
 
-        // Set font properties
-        const fontString = `${store.isItalic ? "italic" : ""} ${
-          store.fontWeight
-        } ${store.fontSize * 16}px ${store.fontFamily}`;
-        ctx.font = fontString;
-        ctx.fillStyle = store.textColor;
-        ctx.textAlign = store.textAlign as CanvasTextAlign;
-        ctx.textBaseline = "middle";
-        ctx.globalAlpha = store.opacity / 100;
-
-        // Set text decorations
-        if (store.textShadow.blur > 0) {
-          ctx.shadowColor = store.textShadow.color;
-          ctx.shadowBlur = store.textShadow.blur;
-          ctx.shadowOffsetX = store.textShadow.offsetX;
-          ctx.shadowOffsetY = store.textShadow.offsetY;
+      // Draw each layer in order
+      for (const layer of nonBlobLayers) {
+        if (layer.type === "text") {
+          drawTextLayer(ctx, layer as TextLayer);
+        } else if (layer.type === "image") {
+          await drawImageLayer(ctx, layer as ImageLayer);
         }
-
-        // Calculate text position
-        let x = store.resolution.width / 2 + store.textPosition.x;
-        if (store.textAlign === "left") {
-          x = 20 + store.textPosition.x;
-        } else if (store.textAlign === "right") {
-          x = store.resolution.width - 20 + store.textPosition.x;
-        }
-
-        // Handle multiline text
-        const lines = store.text.split("\n");
-        const lineHeight = store.fontSize * 16 * store.lineHeight;
-        const totalHeight = lines.length * lineHeight;
-        const startY =
-          store.resolution.height / 2 - totalHeight / 2 + store.textPosition.y;
-
-        lines.forEach((line, index) => {
-          const y = startY + index * lineHeight + lineHeight / 2;
-          ctx.fillText(line, x, y);
-
-          // Draw text decorations
-          if (store.isUnderline || store.isStrikethrough) {
-            const textMetrics = ctx.measureText(line);
-            const textWidth = textMetrics.width;
-            let decorationY = y;
-
-            if (store.isUnderline) {
-              decorationY = y + textMetrics.actualBoundingBoxDescent + 2;
-            }
-            if (store.isStrikethrough) {
-              decorationY = y;
-            }
-
-            let startX = x;
-            if (store.textAlign === "center") {
-              startX = x - textWidth / 2;
-            } else if (store.textAlign === "right") {
-              startX = x - textWidth;
-            }
-
-            ctx.beginPath();
-            ctx.strokeStyle = store.textColor;
-            ctx.lineWidth = Math.max(1, store.fontSize * 0.05);
-            ctx.moveTo(startX, decorationY);
-            ctx.lineTo(startX + textWidth, decorationY);
-            ctx.stroke();
-          }
-        });
-
-        ctx.restore();
-      }
-
-      if (store.sizeMode === "image" && store.logoImage) {
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = store.logoImage as string;
-        });
-
-        const maxWidth = store.resolution.width * 0.5;
-        const maxHeight = store.resolution.height * 0.5;
-        const scale = Math.min(maxWidth / img.width, maxHeight / img.height);
-        const width = img.width * scale;
-        const height = img.height * scale;
-
-        ctx.save();
-        ctx.globalAlpha = store.opacity / 100;
-        ctx.filter = `drop-shadow(${store.textShadow.offsetX}px ${store.textShadow.offsetY}px ${store.textShadow.blur}px ${store.textShadow.color})`;
-        ctx.drawImage(
-          img,
-          store.resolution.width / 2 - width / 2 + store.textPosition.x,
-          store.resolution.height / 2 - height / 2 + store.textPosition.y,
-          width,
-          height
-        );
-        ctx.restore();
       }
 
       // Handle download based on browser
@@ -207,7 +230,7 @@ export default function Home() {
       tempCanvas.height = store.resolution.height;
       const ctx = tempCanvas.getContext("2d")!;
 
-      // Draw the preview canvas
+      // Draw the preview canvas (blobs)
       ctx.drawImage(
         previewCanvas,
         0,
@@ -216,104 +239,18 @@ export default function Home() {
         store.resolution.height
       );
 
-      // Handle text/logo drawing same as download
-      if (store.sizeMode === "text") {
-        ctx.save();
+      // Get all non-blob layers sorted by zIndex
+      const nonBlobLayers = store.layers
+        .filter((l) => l.type !== "blob" && l.visible)
+        .sort((a, b) => a.zIndex - b.zIndex);
 
-        // Set font properties
-        const fontString = `${store.isItalic ? "italic" : ""} ${
-          store.fontWeight
-        } ${store.fontSize * 16}px ${store.fontFamily}`;
-        ctx.font = fontString;
-        ctx.fillStyle = store.textColor;
-        ctx.textAlign = store.textAlign as CanvasTextAlign;
-        ctx.textBaseline = "middle";
-        ctx.globalAlpha = store.opacity / 100;
-
-        // Set text decorations
-        if (store.textShadow.blur > 0) {
-          ctx.shadowColor = store.textShadow.color;
-          ctx.shadowBlur = store.textShadow.blur;
-          ctx.shadowOffsetX = store.textShadow.offsetX;
-          ctx.shadowOffsetY = store.textShadow.offsetY;
+      // Draw each layer in order
+      for (const layer of nonBlobLayers) {
+        if (layer.type === "text") {
+          drawTextLayer(ctx, layer as TextLayer);
+        } else if (layer.type === "image") {
+          await drawImageLayer(ctx, layer as ImageLayer);
         }
-
-        // Calculate text position
-        let x = store.resolution.width / 2 + store.textPosition.x;
-        if (store.textAlign === "left") {
-          x = 20 + store.textPosition.x;
-        } else if (store.textAlign === "right") {
-          x = store.resolution.width - 20 + store.textPosition.x;
-        }
-
-        // Handle multiline text
-        const lines = store.text.split("\n");
-        const lineHeight = store.fontSize * 16 * store.lineHeight;
-        const totalHeight = lines.length * lineHeight;
-        const startY =
-          store.resolution.height / 2 - totalHeight / 2 + store.textPosition.y;
-
-        lines.forEach((line, index) => {
-          const y = startY + index * lineHeight + lineHeight / 2;
-          ctx.fillText(line, x, y);
-
-          // Draw text decorations
-          if (store.isUnderline || store.isStrikethrough) {
-            const textMetrics = ctx.measureText(line);
-            const textWidth = textMetrics.width;
-            let decorationY = y;
-
-            if (store.isUnderline) {
-              decorationY = y + textMetrics.actualBoundingBoxDescent + 2;
-            }
-            if (store.isStrikethrough) {
-              decorationY = y;
-            }
-
-            let startX = x;
-            if (store.textAlign === "center") {
-              startX = x - textWidth / 2;
-            } else if (store.textAlign === "right") {
-              startX = x - textWidth;
-            }
-
-            ctx.beginPath();
-            ctx.strokeStyle = store.textColor;
-            ctx.lineWidth = Math.max(1, store.fontSize * 0.05);
-            ctx.moveTo(startX, decorationY);
-            ctx.lineTo(startX + textWidth, decorationY);
-            ctx.stroke();
-          }
-        });
-
-        ctx.restore();
-      }
-
-      if (store.sizeMode === "image" && store.logoImage) {
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = store.logoImage as string;
-        });
-
-        const maxWidth = (store.resolution.width * store.fontSize) / 100; // Convert percentage to pixels
-        const maxHeight = (store.resolution.height * store.fontSize) / 100;
-        const scale = Math.min(maxWidth / img.width, maxHeight / img.height);
-        const width = img.width * scale;
-        const height = img.height * scale;
-
-        ctx.save();
-        ctx.globalAlpha = store.opacity / 100;
-        ctx.filter = `drop-shadow(${store.textShadow.offsetX}px ${store.textShadow.offsetY}px ${store.textShadow.blur}px ${store.textShadow.color})`;
-        ctx.drawImage(
-          img,
-          store.resolution.width / 2 - width / 2 + store.textPosition.x,
-          store.resolution.height / 2 - height / 2 + store.textPosition.y,
-          width,
-          height
-        );
-        ctx.restore();
       }
 
       // Convert to blob and copy
@@ -461,6 +398,13 @@ export default function Home() {
 
       const textColor = hslToHex(0, 0, textLight); // Hue and saturation 0 for pure grayscale
       store.setTextColor(textColor);
+
+      // Update all text layers with new color
+      store.layers.forEach((layer) => {
+        if (layer.type === "text") {
+          store.updateLayer(layer.id, { textColor });
+        }
+      });
 
       // Glow: slightly less extreme than text for subtle effect
       const glowLight =

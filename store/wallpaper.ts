@@ -3,21 +3,76 @@ import {
   INITIAL_COLORS,
   INITIAL_BACKGROUND_COLORS,
   type CircleProps,
+  type Layer,
+  type BlobLayer,
+  type TextLayer,
+  type ImageLayer,
 } from "@/lib/constants";
 import { Dispatch, SetStateAction } from "react";
 import { debounce } from "@/lib/utils";
 
+// Helper to create default blob layers from INITIAL_COLORS
+const createDefaultBlobLayers = (): BlobLayer[] =>
+  INITIAL_COLORS.map((color, index) => ({
+    id: `blob-${index + 1}`,
+    name: `Blob ${index + 1}`,
+    type: "blob" as const,
+    color,
+    cx: Math.random() * 100,
+    cy: Math.random() * 100,
+    r: 22,
+    visible: true,
+    locked: false,
+    zIndex: index,
+  }));
+
+// Helper to create default text layer
+const createDefaultTextLayer = (): TextLayer => ({
+  id: "text-1",
+  name: "Text Layer 1",
+  type: "text" as const,
+  visible: true,
+  locked: false,
+  zIndex: INITIAL_COLORS.length, // Above all blobs
+  position: { x: 0, y: 0 },
+  content: "Gradii.",
+  fontSize: 10,
+  fontFamily: "Onest",
+  fontWeight: 600,
+  letterSpacing: -0.02,
+  lineHeight: 1,
+  textColor: "#f1f1f1",
+  textAlign: "center",
+  isItalic: false,
+  isUnderline: false,
+  isStrikethrough: false,
+  opacity: 100,
+  shadow: {
+    color: "#f5f5f5",
+    blur: 24,
+    offsetX: 0,
+    offsetY: 0,
+  },
+});
+
 interface WallpaperState {
-  // Colors and Circles
+  // Colors and Background
   colors: string[];
   backgroundColors: string[];
   activeColor: number | null;
+  backgroundColor: string;
+
+  // Unified Layer System
+  layers: Layer[];
+  selectedLayerId: string | null;
+  editingLayerId: string | null;
+
+  // Legacy circles support (derived from layers for backward compatibility)
   circles: CircleProps[];
   previousCircles: CircleProps[];
   numCircles: number;
-  backgroundColor: string;
 
-  // Text Properties
+  // Legacy Text Properties (for backward compatibility - will read from selected text layer)
   text: string;
   htmlContent: string;
   fontSize: number;
@@ -45,7 +100,7 @@ interface WallpaperState {
   };
 
   // UI State
-  activeTab: "design" | "effects" | "canvas";
+  activeTab: "text" | "style" | "layers";
   activeColorPicker: string;
   activeColorType: "text" | "background" | "gradient";
   resolution: { width: number; height: number };
@@ -57,7 +112,7 @@ interface WallpaperState {
   // Position
   textPosition: { x: number; y: number };
 
-  // Add these to WallpaperState interface
+  // Mode
   sizeMode: "text" | "image";
   logoImage: string | null;
   foregroundVisible: boolean;
@@ -66,7 +121,26 @@ interface WallpaperState {
   // Text Alignment
   textAlign: "left" | "center" | "right";
 
-  // Actions
+  // Copying
+  isCopying: boolean;
+
+  // Layer Actions
+  addBlobLayer: () => void;
+  addTextLayer: () => void;
+  addImageLayer: (imageData: string) => void;
+  updateLayer: <T extends Layer>(id: string, updates: Partial<T>) => void;
+  deleteLayer: (id: string) => void;
+  moveLayer: (id: string, direction: "up" | "down") => void;
+  selectLayer: (id: string | null) => void;
+  setEditingLayer: (id: string | null) => void;
+
+  // Layer Getters
+  getBlobLayers: () => BlobLayer[];
+  getTextLayers: () => TextLayer[];
+  getImageLayers: () => ImageLayer[];
+  getSelectedLayer: () => Layer | null;
+
+  // Legacy Actions (kept for backward compatibility)
   setCircles: (circles: CircleProps[]) => void;
   setPreviousCircles: (circles: CircleProps[]) => void;
   setActiveColor: (index: number | null) => void;
@@ -81,8 +155,7 @@ interface WallpaperState {
   generateNewPalette: () => void;
   resetPalette: () => void;
 
-  // Add missing setters
-  setActiveTab: (tab: "design" | "effects" | "canvas") => void;
+  setActiveTab: (tab: "text" | "style" | "layers") => void;
   setLetterSpacing: (spacing: number) => void;
   setOpacity: (opacity: number) => void;
   setLineHeight: (height: number) => void;
@@ -110,38 +183,82 @@ interface WallpaperState {
   setActiveColorType: (type: "text" | "background" | "gradient") => void;
   setIsDownloading: (isDownloading: boolean) => void;
   setTextPosition: (textPosition: { x: number; y: number }) => void;
-
-  // Add these actions
   setTextMode: (mode: "text" | "image") => void;
   setLogoImage: (image: string | null) => void;
-
-  // Add missing setters
   setTextAlign: (align: "left" | "center" | "right") => void;
   setForegroundVisible: (visible: boolean) => void;
   setForegroundLocked: (locked: boolean) => void;
-
-  // Add to WallpaperState interface
-  isCopying: boolean;
   setIsCopying: (isCopying: boolean) => void;
+  setLayers: (layers: Layer[]) => void;
 }
+
+// Helper to convert layers to circles (for backward compatibility)
+const layersToCircles = (layers: Layer[]): CircleProps[] => {
+  return layers
+    .filter((l): l is BlobLayer => l.type === "blob")
+    .map((blob) => ({
+      id: blob.id,
+      name: blob.name,
+      color: blob.color,
+      cx: blob.cx,
+      cy: blob.cy,
+      r: blob.r,
+      visible: blob.visible,
+      locked: blob.locked,
+    }));
+};
+
+// Helper to update blob layers from circles
+const circlesToBlobLayers = (
+  circles: CircleProps[],
+  existingLayers: Layer[]
+): Layer[] => {
+  const nonBlobLayers = existingLayers.filter((l) => l.type !== "blob");
+  const blobLayers: BlobLayer[] = circles.map((circle, index) => ({
+    id: circle.id ?? `blob-${index + 1}`,
+    name: circle.name ?? `Blob ${index + 1}`,
+    type: "blob" as const,
+    color: circle.color,
+    cx: circle.cx,
+    cy: circle.cy,
+    r: circle.r ?? 22,
+    visible: circle.visible ?? true,
+    locked: circle.locked ?? false,
+    zIndex: index,
+  }));
+
+  // Adjust zIndex of non-blob layers to be above blobs
+  const adjustedNonBlobLayers = nonBlobLayers.map((layer) => ({
+    ...layer,
+    zIndex: Math.max(layer.zIndex, blobLayers.length),
+  }));
+
+  return [...blobLayers, ...adjustedNonBlobLayers];
+};
+
+const initialLayers: Layer[] = [
+  ...createDefaultBlobLayers(),
+  createDefaultTextLayer(),
+];
 
 export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   // Initial state
   colors: INITIAL_COLORS,
   backgroundColors: INITIAL_BACKGROUND_COLORS,
   activeColor: null,
-  circles: INITIAL_COLORS.map((color, index) => ({
-    id: `blob-${index + 1}`,
-    name: `Blob ${index + 1}`,
-    color,
-    cx: Math.random() * 100,
-    cy: Math.random() * 100,
-    r: 22,
-    visible: true,
-    locked: false,
-  })),
+  backgroundColor: "#001220",
+
+  // Unified Layer System
+  layers: initialLayers,
+  selectedLayerId: "text-1", // Auto-select default text layer for better UX
+  editingLayerId: null,
+
+  // Legacy circles (derived from layers)
+  circles: layersToCircles(initialLayers),
   previousCircles: [],
   numCircles: INITIAL_COLORS.length,
+
+  // Legacy Text Properties (default values, will be synced with selected text layer)
   text: "Gradii.",
   htmlContent: "<p>Gradii.</p>",
   fontSize: 10,
@@ -150,9 +267,8 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   letterSpacing: -0.02,
   opacity: 100,
   fontFamily: "Onest",
-  activeTab: "design",
+  activeTab: "text",
   grainIntensity: 25,
-  backgroundColor: "#001220",
   lineHeight: 1,
   textColor: "#f1f1f1",
   activeColorPicker: "#f1f1f1",
@@ -175,58 +291,424 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
     offsetY: 0,
   },
   textPosition: { x: 0, y: 0 },
-
-  // Add to initial state
   sizeMode: "text",
   logoImage: null,
   foregroundVisible: true,
   foregroundLocked: false,
-
-  // Text Alignment
   textAlign: "center",
+  isCopying: false,
 
-  // Actions
-  setCircles: (circles) => {
-    set({ circles, numCircles: circles.length });
+  // Layer Actions
+  addBlobLayer: () => {
+    const { layers, colors } = get();
+    const blobCount = layers.filter((l) => l.type === "blob").length;
+    const maxZIndex = Math.max(...layers.map((l) => l.zIndex), -1);
+
+    const newBlob: BlobLayer = {
+      id: `blob-${Date.now()}`,
+      name: `Blob ${blobCount + 1}`,
+      type: "blob",
+      color: colors[blobCount % colors.length],
+      cx: Math.random() * 100,
+      cy: Math.random() * 100,
+      r: 22,
+      visible: true,
+      locked: false,
+      zIndex: maxZIndex + 1,
+    };
+
+    const newLayers = [...layers, newBlob];
+    set({
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
+      numCircles: newLayers.filter((l) => l.type === "blob").length,
+      selectedLayerId: newBlob.id,
+    });
   },
+
+  addTextLayer: () => {
+    const { layers } = get();
+    const textCount = layers.filter((l) => l.type === "text").length;
+    const maxZIndex = Math.max(...layers.map((l) => l.zIndex), -1);
+
+    const newText: TextLayer = {
+      id: `text-${Date.now()}`,
+      name: `Text Layer ${textCount + 1}`,
+      type: "text",
+      visible: true,
+      locked: false,
+      zIndex: maxZIndex + 1,
+      position: { x: 0, y: 0 },
+      content: "New Text",
+      fontSize: 10,
+      fontFamily: "Onest",
+      fontWeight: 600,
+      letterSpacing: -0.02,
+      lineHeight: 1,
+      textColor: "#f1f1f1",
+      textAlign: "center",
+      isItalic: false,
+      isUnderline: false,
+      isStrikethrough: false,
+      opacity: 100,
+      shadow: {
+        color: "#f5f5f5",
+        blur: 24,
+        offsetX: 0,
+        offsetY: 0,
+      },
+    };
+
+    set({
+      layers: [...layers, newText],
+      selectedLayerId: newText.id,
+      editingLayerId: newText.id, // Start in edit mode
+    });
+  },
+
+  addImageLayer: (imageData: string) => {
+    const { layers } = get();
+    const imageCount = layers.filter((l) => l.type === "image").length;
+    const maxZIndex = Math.max(...layers.map((l) => l.zIndex), -1);
+
+    const newImage: ImageLayer = {
+      id: `image-${Date.now()}`,
+      name: `Image Layer ${imageCount + 1}`,
+      type: "image",
+      visible: true,
+      locked: false,
+      zIndex: maxZIndex + 1,
+      position: { x: 0, y: 0 },
+      imageData,
+      scale: 50,
+      opacity: 100,
+      shadow: {
+        color: "#f5f5f5",
+        blur: 24,
+        offsetX: 0,
+        offsetY: 0,
+      },
+    };
+
+    set({
+      layers: [...layers, newImage],
+      selectedLayerId: newImage.id,
+    });
+  },
+
+  updateLayer: <T extends Layer>(id: string, updates: Partial<T>) => {
+    const { layers } = get();
+    const newLayers = layers.map((layer) =>
+      layer.id === id ? { ...layer, ...updates } : layer
+    ) as Layer[];
+
+    set({
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
+    });
+  },
+
+  deleteLayer: (id: string) => {
+    const { layers, selectedLayerId } = get();
+    const newLayers = layers.filter((l) => l.id !== id);
+
+    set({
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
+      numCircles: newLayers.filter((l) => l.type === "blob").length,
+      selectedLayerId: selectedLayerId === id ? null : selectedLayerId,
+      editingLayerId: null,
+    });
+  },
+
+  moveLayer: (id: string, direction: "up" | "down") => {
+    const { layers } = get();
+    const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
+    const currentIndex = sortedLayers.findIndex((l) => l.id === id);
+
+    if (currentIndex === -1) return;
+
+    const targetIndex =
+      direction === "up" ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= sortedLayers.length) return;
+
+    // Swap zIndex values
+    const currentLayer = sortedLayers[currentIndex];
+    const targetLayer = sortedLayers[targetIndex];
+
+    const newLayers = layers.map((layer) => {
+      if (layer.id === currentLayer.id) {
+        return { ...layer, zIndex: targetLayer.zIndex };
+      }
+      if (layer.id === targetLayer.id) {
+        return { ...layer, zIndex: currentLayer.zIndex };
+      }
+      return layer;
+    });
+
+    set({
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
+    });
+  },
+
+  selectLayer: (id: string | null) => {
+    const { layers, editingLayerId } = get();
+
+    // If clicking on a different layer, exit edit mode
+    if (editingLayerId && editingLayerId !== id) {
+      set({ editingLayerId: null });
+    }
+
+    set({ selectedLayerId: id });
+
+    // If selecting a text layer, sync its properties to legacy state
+    if (id) {
+      const layer = layers.find((l) => l.id === id);
+      if (layer?.type === "text") {
+        const textLayer = layer as TextLayer;
+        set({
+          text: textLayer.content,
+          fontSize: textLayer.fontSize,
+          fontFamily: textLayer.fontFamily,
+          fontWeight: textLayer.fontWeight,
+          letterSpacing: textLayer.letterSpacing,
+          lineHeight: textLayer.lineHeight,
+          textColor: textLayer.textColor,
+          textAlign: textLayer.textAlign,
+          isItalic: textLayer.isItalic,
+          isUnderline: textLayer.isUnderline,
+          isStrikethrough: textLayer.isStrikethrough,
+          opacity: textLayer.opacity,
+          textShadow: textLayer.shadow,
+          textPosition: textLayer.position,
+          activeColorPicker: textLayer.textColor,
+        });
+      } else if (layer?.type === "image") {
+        const imageLayer = layer as ImageLayer;
+        set({
+          fontSize: imageLayer.scale,
+          opacity: imageLayer.opacity,
+          textShadow: imageLayer.shadow,
+          textPosition: imageLayer.position,
+        });
+      }
+    }
+  },
+
+  setEditingLayer: (id: string | null) => {
+    set({ editingLayerId: id });
+  },
+
+  // Layer Getters
+  getBlobLayers: () => {
+    return get().layers.filter((l): l is BlobLayer => l.type === "blob");
+  },
+
+  getTextLayers: () => {
+    return get().layers.filter((l): l is TextLayer => l.type === "text");
+  },
+
+  getImageLayers: () => {
+    return get().layers.filter((l): l is ImageLayer => l.type === "image");
+  },
+
+  getSelectedLayer: () => {
+    const { layers, selectedLayerId } = get();
+    return layers.find((l) => l.id === selectedLayerId) ?? null;
+  },
+
+  // Legacy Actions (updated to work with layer system)
+  setCircles: (circles) => {
+    const { layers } = get();
+    const newLayers = circlesToBlobLayers(circles, layers);
+    set({
+      layers: newLayers,
+      circles,
+      numCircles: circles.length,
+    });
+  },
+
   setPreviousCircles: (circles) => set({ previousCircles: circles }),
   setActiveColor: (index) => set({ activeColor: index }),
+
   updateColor: (newColor, index) => {
-    const { circles } = get();
-    const newCircles = [...circles];
-    newCircles[index] = {
-      ...newCircles[index],
-      color: newColor,
-    };
-    set({ circles: newCircles });
+    const { layers } = get();
+    const blobLayers = layers.filter((l) => l.type === "blob") as BlobLayer[];
+    if (index >= 0 && index < blobLayers.length) {
+      const blobId = blobLayers[index].id;
+      const newLayers = layers.map((layer) =>
+        layer.id === blobId ? { ...layer, color: newColor } : layer
+      );
+      set({
+        layers: newLayers,
+        circles: layersToCircles(newLayers),
+      });
+    }
   },
-  setText: (text) => set({ text }),
+
+  setText: (text) => {
+    const { selectedLayerId, layers } = get();
+    // Update selected text layer if one is selected
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId
+          ? { ...layer, content: text }
+          : layer
+      );
+      set({ layers: newLayers, text });
+    } else {
+      // Update first text layer if none selected
+      const firstTextLayer = layers.find((l) => l.type === "text");
+      if (firstTextLayer) {
+        const newLayers = layers.map((layer) =>
+          layer.id === firstTextLayer.id
+            ? { ...layer, content: text }
+            : layer
+        );
+        set({ layers: newLayers, text });
+      } else {
+        set({ text });
+      }
+    }
+  },
+
   setHtmlContent: (content) => set({ htmlContent: content }),
-  setFontSize: debounce((size: number) => set({ fontSize: size }), 100),
-  setFontWeight: (weight) => set({ fontWeight: weight }),
-  setFontFamily: (family) => set({ fontFamily: family }),
+
+  setFontSize: debounce((size: number) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, fontSize: size } : layer
+      );
+      set({ layers: newLayers, fontSize: size });
+    } else if (selectedLayer?.type === "image") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, scale: size } : layer
+      );
+      set({ layers: newLayers, fontSize: size });
+    } else {
+      set({ fontSize: size });
+    }
+  }, 100),
+
+  setFontWeight: (weight) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, fontWeight: weight } : layer
+      );
+      set({ layers: newLayers, fontWeight: weight });
+    } else {
+      set({ fontWeight: weight });
+    }
+  },
+
+  setFontFamily: (family) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, fontFamily: family } : layer
+      );
+      set({ layers: newLayers, fontFamily: family });
+    } else {
+      set({ fontFamily: family });
+    }
+  },
+
   setBackgroundColor: (color) => set({ backgroundColor: color }),
-  setTextColor: (color) => set({ textColor: color }),
+
+  setTextColor: (color) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, textColor: color } : layer
+      );
+      set({ layers: newLayers, textColor: color });
+    } else {
+      set({ textColor: color });
+    }
+  },
 
   generateNewPalette: () => {
-    const { circles } = get();
+    const { layers } = get();
+    const circles = layersToCircles(layers);
     set({
       previousCircles: circles,
-      circles: circles.map((circle) => ({
-        ...circle,
-        cx: Math.random() * 100,
-        cy: Math.random() * 100,
-      })),
+    });
+
+    const newLayers = layers.map((layer) => {
+      if (layer.type === "blob") {
+        return {
+          ...layer,
+          cx: Math.random() * 100,
+          cy: Math.random() * 100,
+        };
+      }
+      return layer;
+    });
+
+    set({
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
     });
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setLetterSpacing: debounce(
-    (spacing: number) => set({ letterSpacing: spacing }),
-    100
-  ),
-  setOpacity: (opacity) => set({ opacity }),
-  setLineHeight: debounce((height: number) => set({ lineHeight: height }), 100),
+
+  setLetterSpacing: debounce((spacing: number) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId
+          ? { ...layer, letterSpacing: spacing }
+          : layer
+      );
+      set({ layers: newLayers, letterSpacing: spacing });
+    } else {
+      set({ letterSpacing: spacing });
+    }
+  }, 100),
+
+  setOpacity: (opacity) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text" || selectedLayer?.type === "image") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, opacity } : layer
+      );
+      set({ layers: newLayers, opacity });
+    } else {
+      set({ opacity });
+    }
+  },
+
+  setLineHeight: debounce((height: number) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, lineHeight: height } : layer
+      );
+      set({ layers: newLayers, lineHeight: height });
+    } else {
+      set({ lineHeight: height });
+    }
+  }, 100),
+
   setBlur: debounce((blur: number) => set({ blur }), 100),
   setSaturation: debounce((saturation: number) => set({ saturation }), 100),
   setContrast: debounce((contrast: number) => set({ contrast }), 100),
@@ -235,13 +717,65 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
     (grainIntensity: number) => set({ grainIntensity }),
     100
   ),
-  setTextShadow: (value) =>
-    set({
-      textShadow: typeof value === "function" ? value(get().textShadow) : value,
-    }),
-  setIsItalic: (isItalic) => set({ isItalic }),
-  setIsUnderline: (isUnderline) => set({ isUnderline }),
-  setIsStrikethrough: (isStrikethrough) => set({ isStrikethrough }),
+
+  setTextShadow: (value) => {
+    const newShadow =
+      typeof value === "function" ? value(get().textShadow) : value;
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text" || selectedLayer?.type === "image") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, shadow: newShadow } : layer
+      );
+      set({ layers: newLayers, textShadow: newShadow });
+    } else {
+      set({ textShadow: newShadow });
+    }
+  },
+
+  setIsItalic: (isItalic) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, isItalic } : layer
+      );
+      set({ layers: newLayers, isItalic });
+    } else {
+      set({ isItalic });
+    }
+  },
+
+  setIsUnderline: (isUnderline) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, isUnderline } : layer
+      );
+      set({ layers: newLayers, isUnderline });
+    } else {
+      set({ isUnderline });
+    }
+  },
+
+  setIsStrikethrough: (isStrikethrough) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, isStrikethrough } : layer
+      );
+      set({ layers: newLayers, isStrikethrough });
+    } else {
+      set({ isStrikethrough });
+    }
+  },
+
   setResolution: (resolution) => set({ resolution }),
   setBackgroundImage: (image) => set({ backgroundImage: image }),
   setIsUploading: (isUploading) => set({ isUploading }),
@@ -249,47 +783,90 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
   setActiveColorPicker: (color) => set({ activeColorPicker: color }),
   setActiveColorType: (type) => set({ activeColorType: type }),
   setIsDownloading: (isDownloading) => set({ isDownloading }),
-  setTextPosition: (textPosition) => set({ textPosition }),
+
+  setTextPosition: (textPosition) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text" || selectedLayer?.type === "image") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId
+          ? { ...layer, position: textPosition }
+          : layer
+      );
+      set({ layers: newLayers, textPosition });
+    } else {
+      set({ textPosition });
+    }
+  },
+
   setTextMode: (mode) => set({ sizeMode: mode }),
   setLogoImage: (image) => set({ logoImage: image }),
-  setTextAlign: (align) => set({ textAlign: align }),
+
+  setTextAlign: (align) => {
+    const { selectedLayerId, layers } = get();
+    const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+
+    if (selectedLayer?.type === "text") {
+      const newLayers = layers.map((layer) =>
+        layer.id === selectedLayerId ? { ...layer, textAlign: align } : layer
+      );
+      set({ layers: newLayers, textAlign: align });
+    } else {
+      set({ textAlign: align });
+    }
+  },
+
   setForegroundVisible: (visible) => set({ foregroundVisible: visible }),
   setForegroundLocked: (locked) => set({ foregroundLocked: locked }),
-  isCopying: false,
   setIsCopying: (isCopying) => set({ isCopying }),
+  setLayers: (layers) =>
+    set({ layers, circles: layersToCircles(layers) }),
+
   resetPalette: () => {
-    const { circles } = get();
-    const newCircles = INITIAL_COLORS.map((color, index) => ({
-      id: circles[index]?.id ?? `blob-${index + 1}`,
-      name: circles[index]?.name ?? `Blob ${index + 1}`,
-      color,
-      cx: circles[index]?.cx ?? Math.random() * 100,
-      cy: circles[index]?.cy ?? Math.random() * 100,
-      r: circles[index]?.r ?? 22,
-      visible: circles[index]?.visible ?? true,
-      locked: circles[index]?.locked ?? false,
-    }));
+    const { layers } = get();
+    const nonBlobLayers = layers.filter((l) => l.type !== "blob");
+
+    // Create new blob layers from initial colors
+    const newBlobLayers = INITIAL_COLORS.map((color, index) => {
+      const existingBlob = layers.find(
+        (l) => l.type === "blob" && l.id === `blob-${index + 1}`
+      ) as BlobLayer | undefined;
+
+      return {
+        id: existingBlob?.id ?? `blob-${index + 1}`,
+        name: existingBlob?.name ?? `Blob ${index + 1}`,
+        type: "blob" as const,
+        color,
+        cx: existingBlob?.cx ?? Math.random() * 100,
+        cy: existingBlob?.cy ?? Math.random() * 100,
+        r: existingBlob?.r ?? 22,
+        visible: existingBlob?.visible ?? true,
+        locked: existingBlob?.locked ?? false,
+        zIndex: index,
+      };
+    });
 
     // Check for overlapping circles and reposition if needed
-    const repositionedCircles = newCircles.map((circle, index) => {
-      const overlapping = newCircles.some((other, otherIndex) => {
+    const repositionedBlobLayers = newBlobLayers.map((blob, index) => {
+      const overlapping = newBlobLayers.some((other, otherIndex) => {
         if (index === otherIndex) return false;
         const distance = Math.sqrt(
-          Math.pow(circle.cx - other.cx, 2) + Math.pow(circle.cy - other.cy, 2)
+          Math.pow(blob.cx - other.cx, 2) + Math.pow(blob.cy - other.cy, 2)
         );
         return distance < 20;
       });
 
       if (overlapping) {
         let attempts = 0;
-        let newCx = circle.cx;
-        let newCy = circle.cy;
+        let newCx = blob.cx;
+        let newCy = blob.cy;
 
         while (attempts < 10) {
           newCx = Math.random() * 100;
           newCy = Math.random() * 100;
 
-          const hasOverlap = newCircles.some((other, otherIndex) => {
+          const hasOverlap = newBlobLayers.some((other, otherIndex) => {
             if (index === otherIndex) return false;
             const distance = Math.sqrt(
               Math.pow(newCx - other.cx, 2) + Math.pow(newCy - other.cy, 2)
@@ -301,16 +878,33 @@ export const useWallpaperStore = create<WallpaperState>((set, get) => ({
           attempts++;
         }
 
-        return { ...circle, cx: newCx, cy: newCy };
+        return { ...blob, cx: newCx, cy: newCy };
       }
 
-      return circle;
+      return blob;
     });
+
+    // Adjust zIndex for non-blob layers
+    const adjustedNonBlobLayers = nonBlobLayers.map((layer, i) => ({
+      ...layer,
+      zIndex: INITIAL_COLORS.length + i,
+    }));
+
+    // Also reset text color in text layers
+    const resetTextLayers = adjustedNonBlobLayers.map((layer) => {
+      if (layer.type === "text") {
+        return { ...layer, textColor: "#f1f1f1" };
+      }
+      return layer;
+    });
+
+    const newLayers = [...repositionedBlobLayers, ...resetTextLayers];
 
     set({
       textColor: "#f1f1f1",
       backgroundColor: "#001220",
-      circles: repositionedCircles,
+      layers: newLayers,
+      circles: layersToCircles(newLayers),
       numCircles: INITIAL_COLORS.length,
     });
   },
