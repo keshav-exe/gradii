@@ -6,8 +6,10 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import {
+  Cancel01Icon,
   Delete02Icon,
   LockedIcon,
   SquareUnlock02Icon,
@@ -312,6 +314,7 @@ export function Stage({
     const move = (ev: PointerEvent) => {
       if (!moved.current && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3)
         return
+      if (!moved.current) dismissPointsHint()
       moved.current = true
       setOpenId(null)
       const p = toUV(ev)
@@ -449,7 +452,7 @@ export function Stage({
                       }}
                       className={cn(
                         "absolute -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border-[2.5px] border-white transition-[width,height,box-shadow] duration-150 ease-out outline-none active:cursor-grabbing",
-                        "shadow-[0_0_0_1px_rgb(0_0_0/0.18),0_2px_8px_rgb(0_0_0/0.3)] focus-visible:shadow-[0_0_0_3px_var(--color-accent)]",
+                        "shadow-[0_0_0_1px_rgb(0_0_0/0.18),0_2px_8px_rgb(0_0_0/0.3)] focus-visible:shadow-[0_0_0_2px_rgb(0_0_0/0.55),0_0_0_5px_#fff]",
                         on ? "z-10 size-[26px]" : "size-5 hover:size-[23px]"
                       )}
                       style={{
@@ -495,6 +498,59 @@ export function Stage({
           )}
         </div>
       </div>
+      {showHandles && def.points && <PointsHint top={inset.top} />}
+    </div>
+  )
+}
+
+const HINT_KEY = "gradii:hint-points"
+const read = () => {
+  try {
+    return !localStorage.getItem(HINT_KEY)
+  } catch {
+    return false
+  }
+}
+export function dismissPointsHint() {
+  try {
+    localStorage.setItem(HINT_KEY, "1")
+  } catch {}
+  window.dispatchEvent(new Event(HINT_KEY))
+}
+
+/** Said once: the points are the interface. Gone after your first drag. */
+function PointsHint({ top }: { top: number }) {
+  const show = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener(HINT_KEY, cb)
+      return () => window.removeEventListener(HINT_KEY, cb)
+    },
+    read,
+    () => false
+  )
+  if (!show) return null
+  return (
+    <div
+      className="absolute left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-[11px] plaque py-1 pr-1 pl-3 text-[12.5px]"
+      style={{ top: top - 4 + 36 }}
+      role="status"
+    >
+      <span
+        className="size-2.5 rounded-full border-2 border-white bg-[#2dd4bf]"
+        aria-hidden
+      />
+      <span className="text-chrome-ink">Drag the points</span>
+      <span className="hidden text-chrome-muted sm:inline">
+        · click one to recolour · double-click to add
+      </span>
+      <button
+        type="button"
+        onClick={dismissPointsHint}
+        aria-label="Dismiss hint"
+        className="relative grid size-6 place-items-center rounded-[7px] text-chrome-muted transition-colors duration-150 before:absolute before:-inset-1.5 hover:bg-chrome-lift hover:text-chrome-ink"
+      >
+        <Icon icon={Cancel01Icon} className="size-3" strokeWidth={2.2} />
+      </button>
     </div>
   )
 }

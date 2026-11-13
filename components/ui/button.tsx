@@ -35,7 +35,7 @@ export function buttonClass(
 ) {
   return cn(
     "inline-flex shrink-0 items-center justify-center gap-1.5 font-medium whitespace-nowrap select-none",
-    "transition-[scale,background-color,color,box-shadow,opacity] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
+    "transition-[scale,background-color,color,box-shadow,opacity] duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none",
     "disabled:pointer-events-none disabled:opacity-40",
     SIZES[size],
     VARIANTS[variant],

@@ -144,7 +144,7 @@ function Swatch({ c, index }: { c: ColorStop; index: number }) {
           type="button"
           aria-label={`Colour ${index + 1}, ${c.hex}${c.locked ? ", locked" : ""}`}
           className={cn(
-            "relative grid aspect-square w-full place-items-center rounded-[9px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] transition-[box-shadow,scale] duration-150 ease-out active:scale-[0.94]",
+            "relative grid aspect-square w-full place-items-center rounded-[9px] shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)] transition-[box-shadow,scale] duration-150 ease-out active:scale-[0.96]",
             selected &&
               "shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08),0_0_0_2px_var(--color-background),0_0_0_3.5px_var(--color-ink)]"
           )}

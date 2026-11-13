@@ -12,27 +12,27 @@ export function Mark({ className }: { className?: string }) {
     <svg viewBox="0 0 32 32" className={cn("size-7", className)} aria-hidden>
       <defs>
         <radialGradient id={g("a")} cx="0.18" cy="0.16" r="0.85">
-          <stop offset="0" stopColor="#ff8a3d" />
-          <stop offset="1" stopColor="#ff8a3d" stopOpacity="0" />
+          <stop offset="0" stopColor="#14b8a6" />
+          <stop offset="1" stopColor="#14b8a6" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={g("b")} cx="0.92" cy="0.22" r="0.75">
-          <stop offset="0" stopColor="#ff3d7f" />
-          <stop offset="1" stopColor="#ff3d7f" stopOpacity="0" />
+          <stop offset="0" stopColor="#7dd3c0" />
+          <stop offset="1" stopColor="#7dd3c0" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={g("c")} cx="0.22" cy="0.98" r="0.85">
-          <stop offset="0" stopColor="#3d63ff" />
-          <stop offset="1" stopColor="#3d63ff" stopOpacity="0" />
+          <stop offset="0" stopColor="#1e5bb8" />
+          <stop offset="1" stopColor="#1e5bb8" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={g("d")} cx="0.9" cy="0.92" r="0.7">
-          <stop offset="0" stopColor="#9b5cff" />
-          <stop offset="1" stopColor="#9b5cff" stopOpacity="0" />
+          <stop offset="0" stopColor="#38bdf8" />
+          <stop offset="1" stopColor="#38bdf8" stopOpacity="0" />
         </radialGradient>
         <clipPath id={g("clip")}>
           <rect width="32" height="32" rx="9" />
         </clipPath>
       </defs>
       <g clipPath={`url(#${g("clip")})`}>
-        <rect width="32" height="32" fill="#1b1c1f" />
+        <rect width="32" height="32" fill="#03203a" />
         <rect width="32" height="32" fill={`url(#${g("c")})`} />
         <rect width="32" height="32" fill={`url(#${g("d")})`} />
         <rect width="32" height="32" fill={`url(#${g("b")})`} />
@@ -48,11 +48,12 @@ export function Mark({ className }: { className?: string }) {
           strokeOpacity="0.16"
         />
       </g>
+      <circle cx="20.5" cy="12" r="5.6" fill="#000" fillOpacity="0.22" />
       <circle
         cx="20.5"
         cy="12"
         r="4.2"
-        fill="#ff3d7f"
+        fill="#2dd4bf"
         stroke="#fff"
         strokeWidth="2"
       />

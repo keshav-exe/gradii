@@ -59,7 +59,7 @@ const f=t=>{const d=Math.min(devicePixelRatio,2),w=Math.round(c.clientWidth*d),h
 if(c.width!==w||c.height!==h){c.width=w;c.height=h}g.viewport(0,0,w,h);S.u_res([w,h]);S.u_offset([0,0]);S.u_pxScale(d);
 S.u_phase(still?Z:(Z+t/1e3/P*6.2831853)%6.2831853);g.drawArrays(g.TRIANGLES,0,3);if(!still)requestAnimationFrame(f)};
 requestAnimationFrame(f);if(still)addEventListener("resize",()=>requestAnimationFrame(f))})()`
-  return `<!-- ${doc.name || "Gradient"}, made with Gradii (gradii.fun) -->
+  return `<!-- ${doc.name || "Gradient"}, made with Gradii (gradii.kshv.me) -->
 <canvas style="position:absolute;inset:0;width:100%;height:100%;display:block"></canvas>
 <script>${runtime}</script>`
 }

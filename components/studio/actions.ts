@@ -56,8 +56,10 @@ export async function copyShareLink() {
         ? "Link copied (without your uploaded image)"
         : "Link copied"
     )
+    return true
   } catch {
     toast("Couldn't reach the clipboard", "error")
+    return false
   }
 }
 

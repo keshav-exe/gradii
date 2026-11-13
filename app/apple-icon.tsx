@@ -11,7 +11,7 @@ export default function AppleIcon() {
         width: "100%",
         height: "100%",
         display: "flex",
-        background: "#1b1c1f",
+        background: "#03203a",
       }}
     >
       <MarkArt size={180} />

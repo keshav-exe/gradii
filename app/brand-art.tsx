@@ -1,11 +1,11 @@
 /* Shared art for the generated icon and social image (rendered by next/og). */
 
 export const MESH = [
-  "radial-gradient(circle at 12% 18%, #ff8a3d 0%, rgba(255,138,61,0) 48%)",
-  "radial-gradient(circle at 88% 16%, #ff3d7f 0%, rgba(255,61,127,0) 52%)",
-  "radial-gradient(circle at 22% 100%, #3d63ff 0%, rgba(61,99,255,0) 60%)",
-  "radial-gradient(circle at 92% 96%, #9b5cff 0%, rgba(155,92,255,0) 55%)",
-  "radial-gradient(circle at 55% 55%, #ff6a5c 0%, rgba(255,106,92,0) 40%)",
+  "radial-gradient(circle at 12% 18%, #14b8a6 0%, rgba(20,184,166,0) 48%)",
+  "radial-gradient(circle at 88% 16%, #7dd3c0 0%, rgba(125,211,192,0) 52%)",
+  "radial-gradient(circle at 22% 100%, #1e5bb8 0%, rgba(30,91,184,0) 60%)",
+  "radial-gradient(circle at 92% 96%, #38bdf8 0%, rgba(56,189,248,0) 55%)",
+  "radial-gradient(circle at 55% 55%, #0ea5a4 0%, rgba(14,165,164,0) 40%)",
 ].join(", ")
 
 export function MarkArt({ size }: { size: number }) {
@@ -17,7 +17,7 @@ export function MarkArt({ size }: { size: number }) {
         width: size,
         height: size,
         borderRadius: r,
-        backgroundColor: "#1b1c1f",
+        backgroundColor: "#03203a",
         backgroundImage: MESH,
         position: "relative",
         display: "flex",
@@ -32,7 +32,8 @@ export function MarkArt({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot,
-          backgroundColor: "#ff3d7f",
+          backgroundColor: "#2dd4bf",
+          boxShadow: "0 0 0 2px rgba(0,0,0,0.2)",
           border: `${Math.max(2, size * 0.06)}px solid white`,
         }}
       />

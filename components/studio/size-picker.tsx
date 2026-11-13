@@ -61,7 +61,7 @@ export function SizePicker({ className }: { className?: string }) {
         <button
           type="button"
           className={cn(
-            "flex h-8 items-center gap-2 rounded-[11px] plaque pr-2 pl-3 text-[12.5px] font-medium transition-[scale] duration-150 active:scale-[0.97]",
+            "flex h-8 items-center gap-2 rounded-[11px] plaque pr-2 pl-3 text-[12.5px] font-medium transition-[scale] duration-150 active:scale-[0.96]",
             className
           )}
         >

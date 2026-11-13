@@ -43,12 +43,19 @@ function Tool({
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          "grid size-9 place-items-center rounded-[9px] text-chrome-muted transition-[background-color,color,scale] duration-150 ease-out hover:bg-chrome-lift hover:text-chrome-ink active:scale-[0.94] disabled:opacity-35 disabled:hover:bg-transparent",
+          "grid size-9 place-items-center rounded-[9px] text-chrome-muted transition-[background-color,color,scale] duration-150 ease-out hover:bg-chrome-lift hover:text-chrome-ink active:scale-[0.96] disabled:opacity-35 disabled:hover:bg-transparent",
           pressed &&
             "bg-chrome-raised text-chrome-ink shadow-chrome-raised hover:bg-chrome-raised"
         )}
       >
-        <Icon icon={icon} className={cn("size-[18px]", accent)} />
+        <Icon
+          icon={icon}
+          className={cn(
+            "size-[18px]",
+            icon === PlayIcon && "translate-x-px",
+            accent
+          )}
+        />
       </button>
     </Tip>
   )

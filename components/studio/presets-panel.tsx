@@ -73,7 +73,7 @@ function Tile({
     >
       <span
         className={cn(
-          "relative block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-surface-muted shadow-card transition-[box-shadow,scale] duration-200 ease-out group-hover:shadow-float group-active:scale-[0.98]",
+          "relative block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-surface-muted shadow-card transition-[box-shadow,scale] duration-200 ease-out group-hover:shadow-float group-active:scale-[0.96]",
           active &&
             "shadow-[0_0_0_2px_var(--color-ink)] group-hover:shadow-[0_0_0_2px_var(--color-ink)]"
         )}
@@ -157,7 +157,7 @@ function Library() {
           <button
             type="button"
             onClick={() => replace(s.doc)}
-            className="block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-surface-muted shadow-card transition-[box-shadow,scale] duration-200 hover:shadow-float active:scale-[0.98]"
+            className="block aspect-[16/10] w-full overflow-hidden rounded-[10px] bg-surface-muted shadow-card transition-[box-shadow,scale] duration-200 hover:shadow-float active:scale-[0.96]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -174,7 +174,7 @@ function Library() {
             type="button"
             aria-label={`Remove ${s.doc.name || "gradient"} from library`}
             onClick={() => unsave(s.id)}
-            className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full plaque opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+            className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full plaque opacity-0 transition-opacity duration-150 group-hover:opacity-100 before:absolute before:-inset-2 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
           >
             <Icon icon={Cancel01Icon} className="size-3" strokeWidth={2.2} />
           </button>

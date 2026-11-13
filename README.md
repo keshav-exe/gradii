@@ -10,7 +10,7 @@
 ![GithubBanner](./app/opengraph-image.png)
 
 <p align="center">
-Create beautiful mesh gradients at https://gradii.fun.
+Create beautiful mesh gradients at https://gradii.kshv.me.
 </p>
 
 ## Why Gradii?

@@ -73,12 +73,15 @@ export function SliderField({
             width: `${Math.abs(at - origin)}%`,
           }}
         />
-        <Slider.Track className="absolute inset-0">
-          <Slider.Thumb
-            aria-label={label}
-            className="h-4 w-[2px] rounded-full bg-ink/35 outline-none group-hover/slider:bg-ink/60 focus-visible:h-5 focus-visible:bg-accent data-[dragging]:bg-ink"
-          />
-        </Slider.Track>
+        {/* Base UI pins the track to position: relative, so it gets a box to fill. */}
+        <div className="absolute inset-0">
+          <Slider.Track className="size-full">
+            <Slider.Thumb
+              aria-label={label}
+              className="h-4 w-[2px] rounded-full bg-ink/35 outline-none group-hover/slider:bg-ink/60 focus-visible:h-5 focus-visible:bg-accent data-[dragging]:bg-ink"
+            />
+          </Slider.Track>
+        </div>
         <span className="pointer-events-none relative px-2.5 text-[12.5px] text-ink-secondary">
           {label}
         </span>
@@ -99,7 +102,8 @@ export function SliderField({
         ) : (
           <span
             onDoubleClick={() => setTyping(true)}
-            className="relative ml-auto px-2.5 label text-ink tabular-nums"
+            title="Double-click to type a value"
+            className="relative mr-1 ml-auto cursor-text rounded-[6px] px-1.5 py-0.5 label text-ink tabular-nums transition-colors duration-150 hover:bg-surface/80"
           >
             {shown}
           </span>
