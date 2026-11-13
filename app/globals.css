@@ -1,199 +1,434 @@
 @import "tailwindcss";
-
-@plugin 'tailwindcss-animate';
-
-@custom-variant dark (&:is(.dark *));
-
-@theme {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-
-  --color-chart-1: hsl(var(--chart-1));
-  --color-chart-2: hsl(var(--chart-2));
-  --color-chart-3: hsl(var(--chart-3));
-  --color-chart-4: hsl(var(--chart-4));
-  --color-chart-5: hsl(var(--chart-5));
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-
-  --animate-marquee: marquee var(--duration) infinite linear;
-  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
-
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(calc(-100% - var(--gap)));
-    }
-  }
-  @keyframes marquee-vertical {
-    from {
-      transform: translateY(0);
-    }
-    to {
-      transform: translateY(calc(-100% - var(--gap)));
-    }
-  }
-}
+@import "tw-animate-css";
 
 /*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+ * The page follows the visitor's light or dark setting (a script in <head>
+ * sets `.dark` on <html>, and the footer can override it). `scheme-dark`
+ * still forces the dark palette on one element, for panels that are always
+ * graphite.
+ */
+@custom-variant dark (&:where(.dark, .dark *, .scheme-dark, .scheme-dark *));
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
-  }
+/*
+ * The web design system shared with kshv.me and the sandbox: neutral paper,
+ * Geist, graphite chrome, and colour only where it means something (icons,
+ * marks, links).
+ */
+:root {
+  color-scheme: light;
+
+  --background: #fafafa;
+  --surface: #ffffff;
+  --surface-muted: #f4f4f5;
+  /* A card's inset panel sits on this. */
+  --surface-sunken: #efeff0;
+  --ink: #0a0a0a;
+  --ink-secondary: #5c5c5f;
+  /* Decorative only: below 4.5:1 on paper. */
+  --ink-tertiary: #a1a1a6;
+  --hairline: #e6e6e8;
+  --accent: #2563eb;
+  --on-accent: #ffffff;
+
+  /* The sandbox canvas: a mockup sits on a dotted board, not a backdrop. */
+  --canvas: #ececed;
+  --canvas-dot: rgb(0 0 0 / 0.1);
+
+  /* Vivid hues, for icons and marks only. Deeper on paper so they keep their contrast. */
+  --vivid-orange: oklch(0.66 0.19 52);
+  --vivid-pink: oklch(0.62 0.22 352);
+  --vivid-violet: oklch(0.56 0.22 298);
+  --vivid-blue: oklch(0.58 0.19 255);
+  --vivid-green: oklch(0.62 0.19 148);
+  --vivid-cyan: oklch(0.64 0.13 212);
+  --vivid-yellow: oklch(0.74 0.17 85);
+
+  /*
+   * Graphite chrome, the same in both themes: a hairline of light along the
+   * top edge, a faint ring, light inside the top and shade pooled at the bottom.
+   */
+  --chrome: #1b1c1f;
+  --chrome-raised: #2a2b30;
+  --chrome-ink: #f4f4f5;
+  --chrome-muted: rgb(244 244 245 / 0.6);
+  --chrome-faint: rgb(244 244 245 / 0.32);
+  --chrome-lift: rgb(255 255 255 / 0.075);
+  --chrome-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    inset 0 0 0 1px rgb(255 255 255 / 0.045),
+    inset 0 10px 14px -10px rgb(255 255 255 / 0.05),
+    inset 0 -10px 14px -10px rgb(0 0 0 / 0.4), 0 1px 2px rgb(0 0 0 / 0.14),
+    0 14px 32px -12px rgb(0 0 0 / 0.38);
+  --chrome-raised-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(0 0 0 / 0.25),
+    0 1px 2px rgb(0 0 0 / 0.3);
+
+  /* A card: a hairline ring and a breath of shadow. */
+  --card-shadow: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+  --float-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.06), 0 12px 32px -12px rgb(0 0 0 / 0.22),
+    0 2px 6px rgb(0 0 0 / 0.06);
+  --window-shadow:
+    0 28px 70px -12px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.14);
+
+
+
+  /* shadcn components read these. */
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--chrome);
+  --primary-foreground: var(--chrome-ink);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--ink-secondary);
+  --accent-foreground: var(--ink);
+  --destructive: #e5484d;
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--accent);
+  --radius: 0.75rem;
 }
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 92.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
-  }
+.dark,
+.scheme-dark {
+  color-scheme: dark;
+  --background: #0a0b0c;
+  /* Raised panels are lighter than the card they sit in, as on kshv.me (12.5% on 8.5%). */
+  --surface: #1f1f21;
+  --surface-muted: #151516;
+  --surface-sunken: #121213;
+  --ink: #fafafa;
+  --ink-secondary: #8e8e93;
+  --ink-tertiary: #56565b;
+  --hairline: #262628;
+  --accent: #60a5fa;
+  /* White is too faint on the light accent; near-black clears 7:1. */
+  --on-accent: #0a0b0c;
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 8%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 6%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 8%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 8%;
-    --input: 240 3.7% 8%;
-    --ring: 240 4.9% 83.9%;
-  }
+  --canvas: #111113;
+  --canvas-dot: rgb(255 255 255 / 0.08);
+
+  /* Tuned for graphite, so the dark page takes them as they are. */
+  --vivid-orange: oklch(0.76 0.19 52);
+  --vivid-pink: oklch(0.72 0.22 352);
+  --vivid-violet: oklch(0.68 0.22 298);
+  --vivid-blue: oklch(0.7 0.19 255);
+  --vivid-green: oklch(0.79 0.21 148);
+  --vivid-cyan: oklch(0.8 0.15 212);
+  --vivid-yellow: oklch(0.87 0.18 92);
+
+  /* On a dark page the graphite needs an outer edge to lift off it. */
+  --chrome-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06),
+    inset 0 10px 14px -10px rgb(255 255 255 / 0.05),
+    inset 0 -10px 14px -10px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(0 0 0 / 0.5),
+    0 14px 32px -12px rgb(0 0 0 / 0.7);
+
+  --card-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --float-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06), 0 0 0 1px rgb(255 255 255 / 0.07),
+    0 16px 36px -12px rgb(0 0 0 / 0.7);
+  --window-shadow:
+    0 28px 70px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+
+}
+
+.scheme-dark {
+  background-color: var(--background);
+  color: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-hairline: var(--hairline);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-canvas: var(--canvas);
+
+  --color-chrome: var(--chrome);
+  --color-chrome-raised: var(--chrome-raised);
+  --color-chrome-ink: var(--chrome-ink);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-chrome-faint: var(--chrome-faint);
+  --color-chrome-lift: var(--chrome-lift);
+
+  --color-vivid-orange: var(--vivid-orange);
+  --color-vivid-pink: var(--vivid-pink);
+  --color-vivid-violet: var(--vivid-violet);
+  --color-vivid-blue: var(--vivid-blue);
+  --color-vivid-green: var(--vivid-green);
+  --color-vivid-cyan: var(--vivid-cyan);
+  --color-vivid-yellow: var(--vivid-yellow);
+
+
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --shadow-card: var(--card-shadow);
+  --shadow-float: var(--float-shadow);
+  --shadow-window: var(--window-shadow);
+  --shadow-chrome: var(--chrome-shadow);
+  --shadow-chrome-raised: var(--chrome-raised-shadow);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@theme {
+  /* A card is 20px; the panel inset 6px inside it is 14px, so the corners nest. */
+  --radius-card: 20px;
+  --radius-panel: 20px;
+  --radius-inset: 14px;
+
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {
   * {
-    @apply border-border;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
+    @apply border-border outline-ring/50;
   }
+
+  html {
+    background-color: var(--color-background);
+    overscroll-behavior-y: none;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    font-family: var(--font-onest);
+    @apply bg-background font-sans text-ink;
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis-weight: none;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--color-accent) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklch, var(--color-ink) 55%, transparent);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* Headlines: Geist at medium weight, set tight. */
+@utility display {
+  font-weight: 500;
+  letter-spacing: -0.035em;
 }
 
-.no-scrollbar {
+/* Small mono labels: versions, dates, keys, counts. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+
+/* The floating graphite surface of the sandbox: toolbars, menus, commands. */
+@utility plaque {
+  background-color: var(--chrome);
+  color: var(--chrome-ink);
+  box-shadow: var(--chrome-shadow);
+}
+
+/* A card: the soft surface. Its highlights go on a `panel` set 6px into it. */
+@utility card {
+  background-color: var(--surface-muted);
+  box-shadow: var(--card-shadow);
+}
+
+@utility panel {
+  background-color: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+/* The sandbox canvas: a fine grid of dots behind the artboard. */
+@utility canvas {
+  background-color: var(--canvas);
+  background-image: radial-gradient(
+    circle,
+    var(--canvas-dot) 1px,
+    transparent 1.2px
+  );
+  background-size: 16px 16px;
+  background-position: center;
+}
+
+/* A transparency board, behind swatches that might be translucent. */
+@utility checker {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e6e6e8 25%, transparent 25%),
+    linear-gradient(-45deg, #e6e6e8 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e6e6e8 75%),
+    linear-gradient(-45deg, transparent 75%, #e6e6e8 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+}
+
+@utility scrollbar-none {
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  overflow-y: auto;
-}
-
-.dark ::selection {
-  background-color: hsl(var(--accent));
-  color: hsl(var(--foreground));
-}
-
-::view-transition-group(root) {
-  animation-duration: 0.7s;
-  animation-timing-function: cubic-bezier(0.65, 0.05, 0.36, 1);
-}
-
-::view-transition-new(root) {
-  animation-name: reveal-light;
-}
-
-::view-transition-old(root),
-.dark::view-transition-old(root) {
-  animation: none;
-  z-index: -1;
-}
-.dark::view-transition-new(root) {
-  animation-name: reveal-dark;
-}
-
-@keyframes reveal-dark {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
-@keyframes reveal-light {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
+/* Thin, quiet scrollbars for the side panels. */
+@utility scroll-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--color-ink) 14%, transparent)
+    transparent;
 }
 
-* {
+/* The editor is an app, not a page: no rubber-banding, no text selection on chrome. */
+html.studio,
+html.studio body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.studio body {
+  -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html.studio :is(input, textarea, [contenteditable]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Base UI popups: a short scale-and-fade from where they're anchored. */
+.pop {
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 150ms ease-out,
+    scale 150ms var(--ease-out-quint);
+}
+.pop[data-starting-style],
+.pop[data-ending-style] {
+  opacity: 0;
+  scale: 0.96;
+}
+.pop[data-ending-style] {
+  transition-duration: 100ms;
+}
+
+.backdrop {
+  transition: opacity 200ms ease-out;
+}
+.backdrop[data-starting-style],
+.backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.dialog {
+  transition:
+    opacity 200ms ease-out,
+    scale 240ms var(--ease-out-quint),
+    translate 240ms var(--ease-out-quint);
+}
+.dialog[data-starting-style],
+.dialog[data-ending-style] {
+  opacity: 0;
+  scale: 0.97;
+}
+
+/* The colour picker from react-colorful, set in the system's shapes. */
+.picker .react-colorful {
+  width: 100%;
+  height: auto;
+  gap: 10px;
+}
+.picker .react-colorful__saturation {
+  height: 168px;
+  border-radius: 10px;
+  border-bottom: 0;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+.picker .react-colorful__hue {
+  height: 12px;
+  border-radius: 999px;
+}
+.picker .react-colorful__pointer {
+  width: 18px;
+  height: 18px;
+  border-width: 2.5px;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.12),
+    0 2px 6px rgb(0 0 0 / 0.25);
+}
+.picker .react-colorful__hue-pointer {
+  width: 14px;
+  height: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop,
+  .dialog,
+  .backdrop {
+    transition: none;
+  }
+}
+
+/* Light and dark: one quick crossfade of the whole page, every other transition held still. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: ease-out;
 }

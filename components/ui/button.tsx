@@ -1,60 +1,64 @@
-import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
+import { forwardRef, type ButtonHTMLAttributes } from "react"
+import { cn } from "@/lib/utils"
 
-import { cn } from "@/lib/utils";
+const VARIANTS = {
+  /** Graphite, like the sandbox's toolbars: the one solid control on screen. */
+  primary: "plaque hover:bg-[color-mix(in_oklch,var(--color-chrome),white_7%)]",
+  /** A white panel with a hairline, on the page. */
+  secondary:
+    "panel text-ink hover:bg-[color-mix(in_oklch,var(--color-surface),var(--color-ink)_5%)]",
+  /** No surface until you point at it. */
+  ghost: "text-ink-secondary hover:bg-ink/[0.06] hover:text-ink",
+  /** Raised graphite, for a control that sits on a plaque. */
+  chrome:
+    "bg-chrome-raised text-chrome-ink shadow-chrome-raised hover:bg-[color-mix(in_oklch,var(--color-chrome-raised),white_8%)]",
+  /** Bare, on a plaque. */
+  plaque: "text-chrome-muted hover:bg-chrome-lift hover:text-chrome-ink",
+} as const
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm relative cursor-pointer transition-all duration-300 rounded-xl border border-primary/10 bg-foreground/5 hover:bg-primary/10 backdrop-blur-md w-full disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary/20 transition-all duration-300 ease-[cubic-bezier(0.45, 0.05, 0.55, 0.95)]",
-  {
-    variants: {
-      variant: {
-        default: "text-foreground",
-        accent:
-          "bg-secondary-foreground hover:bg-secondary-foreground/80 text-secondary",
-        destructive:
-          "bg-destructive/50 text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-foreground/10 hover:text-accent-foreground border-none bg-transparent",
-        link: "text-primary underline-offset-4 hover:underline",
-        success: "bg-green-600/50 text-white hover:bg-green-600/90",
-      },
-      size: {
-        default: "px-4 py-2",
-        sm: "px-3 py-1.5",
-        lg: "px-3 py-4",
-        icon: "h-10 w-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-);
+const SIZES = {
+  default: "h-9 rounded-[10px] px-3.5 text-[13px]",
+  sm: "h-8 rounded-[9px] px-3 text-[13px]",
+  xs: "h-7 rounded-[8px] px-2.5 text-xs",
+  icon: "size-9 rounded-[10px]",
+  "icon-sm": "size-8 rounded-[9px]",
+  "icon-xs": "size-7 rounded-[8px]",
+} as const
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
+export type ButtonVariant = keyof typeof VARIANTS
+export type ButtonSize = keyof typeof SIZES
+
+export function buttonClass(
+  variant: ButtonVariant = "secondary",
+  size: ButtonSize = "default",
+  className?: string
+) {
+  return cn(
+    "inline-flex shrink-0 items-center justify-center gap-1.5 font-medium whitespace-nowrap select-none",
+    "transition-[scale,background-color,color,box-shadow,opacity] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
+    "disabled:pointer-events-none disabled:opacity-40",
+    SIZES[size],
+    VARIANTS[variant],
+    className
+  )
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    );
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: ButtonVariant
+    size?: ButtonSize
   }
-);
-Button.displayName = "Button";
-
-export { Button, buttonVariants };
+>(function Button(
+  { variant, size, className, type = "button", ...props },
+  ref
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={buttonClass(variant, size, className)}
+      {...props}
+    />
+  )
+})

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <radialGradient id="a" cx="0.18" cy="0.16" r="0.85"><stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b" cx="0.92" cy="0.22" r="0.75"><stop offset="0" stop-color="#ff3d7f"/><stop offset="1" stop-color="#ff3d7f" stop-opacity="0"/></radialGradient>
+    <radialGradient id="c" cx="0.22" cy="0.98" r="0.85"><stop offset="0" stop-color="#3d63ff"/><stop offset="1" stop-color="#3d63ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="d" cx="0.9" cy="0.92" r="0.7"><stop offset="0" stop-color="#9b5cff"/><stop offset="1" stop-color="#9b5cff" stop-opacity="0"/></radialGradient>
+    <clipPath id="k"><rect width="32" height="32" rx="9"/></clipPath>
+  </defs>
+  <g clip-path="url(#k)">
+    <rect width="32" height="32" fill="#1b1c1f"/>
+    <rect width="32" height="32" fill="url(#c)"/>
+    <rect width="32" height="32" fill="url(#d)"/>
+    <rect width="32" height="32" fill="url(#b)"/>
+    <rect width="32" height="32" fill="url(#a)"/>
+    <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="none" stroke="#fff" stroke-opacity="0.16"/>
+  </g>
+  <circle cx="20.5" cy="12" r="4.2" fill="#ff3d7f" stroke="#fff" stroke-width="2"/>
+</svg>

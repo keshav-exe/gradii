@@ -1,31 +1,48 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { Popover } from "@base-ui/react/popover"
+import type { ReactElement, ReactNode } from "react"
+import { cn } from "@/lib/utils"
 
-import { cn } from "@/lib/utils";
-
-const Popover = PopoverPrimitive.Root;
-
-const PopoverTrigger = PopoverPrimitive.Trigger;
-
-const PopoverContent = React.forwardRef<
-  React.ElementRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
-      ref={ref}
-      align={align}
-      sideOffset={sideOffset}
-      className={cn(
-        "z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        className
-      )}
-      {...props}
-    />
-  </PopoverPrimitive.Portal>
-));
-PopoverContent.displayName = PopoverPrimitive.Content.displayName;
-
-export { Popover, PopoverTrigger, PopoverContent };
+/** A floating white panel, anchored to its trigger. */
+export function Pop({
+  trigger,
+  children,
+  side = "bottom",
+  align = "start",
+  open,
+  onOpenChange,
+  className,
+}: {
+  trigger: ReactElement
+  children: ReactNode
+  side?: "top" | "bottom" | "left" | "right"
+  align?: "start" | "center" | "end"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  className?: string
+}) {
+  return (
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      <Popover.Trigger render={trigger} />
+      <Popover.Portal>
+        <Popover.Positioner
+          side={side}
+          align={align}
+          sideOffset={8}
+          collisionPadding={12}
+          className="z-50"
+        >
+          <Popover.Popup
+            className={cn(
+              "pop rounded-[16px] bg-surface p-3 text-ink shadow-float outline-none",
+              className
+            )}
+          >
+            {children}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
