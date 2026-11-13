@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "gradii", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev", "--port", "3217"], "port": 3217 }
+  ]
+}

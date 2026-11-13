@@ -1,124 +1,315 @@
 import {
   Bricolage_Grotesque,
-  Space_Mono,
-  Space_Grotesk,
-  Manrope,
-  Poppins,
-  Montserrat,
-  Onest,
+  DM_Serif_Display,
+  Fraunces,
+  Funnel_Display,
   Instrument_Serif,
   Inter,
-  DM_Serif_Display,
   Lora,
-  Geist,
-  Geist_Mono,
+  Manrope,
+  Montserrat,
   Ms_Madi,
-  Funnel_Sans,
-  Funnel_Display,
-} from "next/font/google";
+  Onest,
+  Playfair_Display,
+  Poppins,
+  Space_Grotesk,
+  Space_Mono,
+  Syne,
+  Unbounded,
+} from "next/font/google"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
 
-// Sans-serif fonts
-export const bricolage = Bricolage_Grotesque({
+/*
+ * Typefaces for the text layer. None are preloaded: a font downloads the
+ * first time someone picks it.
+ */
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
-  variable: "--font-bricolage",
-  display: 'swap',
-});
-
-export const funnelSans = Funnel_Sans({
+  display: "swap",
+  preload: false,
+})
+const dmSerif = DM_Serif_Display({
   subsets: ["latin"],
-  variable: "--font-funnel-sans",
-  display: 'swap',
-});
-
-export const funnelDisplay = Funnel_Display({
+  display: "swap",
+  preload: false,
+  weight: "400",
+  style: ["normal", "italic"],
+})
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--font-funnel-display",
-  display: 'swap',
-});
-
-export const geist = Geist({
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+})
+const funnel = Funnel_Display({
   subsets: ["latin"],
-  variable: "--font-geist",
-  display: 'swap',
-});
-
-export const inter = Inter({
+  display: "swap",
+  preload: false,
+})
+const instrument = Instrument_Serif({
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: 'swap',
-});
-
-export const manrope = Manrope({
+  display: "swap",
+  preload: false,
+  weight: "400",
+  style: ["normal", "italic"],
+})
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-manrope",
-  display: 'swap',
-});
-
-export const montserrat = Montserrat({
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+})
+const lora = Lora({
   subsets: ["latin"],
-  variable: "--font-montserrat",
-  display: 'swap',
-});
-
-export const onest = Onest({
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+})
+const manrope = Manrope({ subsets: ["latin"], display: "swap", preload: false })
+const montserrat = Montserrat({
   subsets: ["latin"],
-  variable: "--font-onest",
-  display: 'swap',
-});
-
-export const poppins = Poppins({
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+})
+const madi = Ms_Madi({
   subsets: ["latin"],
-  variable: "--font-poppins",
-  display: 'swap',
-});
-
-export const spaceGrotesk = Space_Grotesk({
+  display: "swap",
+  preload: false,
+  weight: "400",
+})
+const onest = Onest({ subsets: ["latin"], display: "swap", preload: false })
+const playfair = Playfair_Display({
   subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  display: 'swap',
-});
-
-// Serif fonts
-export const dmSerifDisplay = DM_Serif_Display({
+  display: "swap",
+  preload: false,
+  style: ["normal", "italic"],
+})
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-dm-serif-display",
-  weight: ["400"],
-  display: 'swap',
-});
-
-export const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
+  display: "swap",
+  preload: false,
+  weight: ["300", "400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
+})
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-instrument-serif",
-  display: 'swap',
-});
-
-export const lora = Lora({
+  display: "swap",
+  preload: false,
+})
+const spaceMono = Space_Mono({
   subsets: ["latin"],
-  variable: "--font-lora",
-  weight: ["400", "500", "600", "700"],
-  display: 'swap',
-});
-
-export const msMadi = Ms_Madi({
-  subsets: ["latin"],
-  variable: "--font-ms-madi",
-  weight: ["400"],
-  display: 'swap',
-});
-
-// Monospace fonts
-export const geistMono = Geist_Mono({
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: 'swap',
-});
-
-export const spaceMono = Space_Mono({
+  display: "swap",
+  preload: false,
   weight: ["400", "700"],
+  style: ["normal", "italic"],
+})
+const syne = Syne({ subsets: ["latin"], display: "swap", preload: false })
+const unbounded = Unbounded({
   subsets: ["latin"],
-  variable: "--font-space-mono",
-  display: 'swap',
-});
+  display: "swap",
+  preload: false,
+})
+
+export interface FontDef {
+  id: string
+  label: string
+  family: string
+  category: "Sans" | "Serif" | "Display" | "Mono" | "Script"
+  weights: number[]
+  italic: boolean
+}
+
+const range = (a: number, b: number) =>
+  Array.from({ length: (b - a) / 100 + 1 }, (_, i) => a + i * 100)
+
+export const FONTS: FontDef[] = [
+  {
+    id: "geist",
+    label: "Geist",
+    family: GeistSans.style.fontFamily,
+    category: "Sans",
+    weights: range(100, 900),
+    italic: false,
+  },
+  {
+    id: "inter",
+    label: "Inter",
+    family: inter.style.fontFamily,
+    category: "Sans",
+    weights: range(100, 900),
+    italic: true,
+  },
+  {
+    id: "onest",
+    label: "Onest",
+    family: onest.style.fontFamily,
+    category: "Sans",
+    weights: range(100, 900),
+    italic: false,
+  },
+  {
+    id: "manrope",
+    label: "Manrope",
+    family: manrope.style.fontFamily,
+    category: "Sans",
+    weights: range(200, 800),
+    italic: false,
+  },
+  {
+    id: "space-grotesk",
+    label: "Space Grotesk",
+    family: spaceGrotesk.style.fontFamily,
+    category: "Sans",
+    weights: range(300, 700),
+    italic: false,
+  },
+  {
+    id: "montserrat",
+    label: "Montserrat",
+    family: montserrat.style.fontFamily,
+    category: "Sans",
+    weights: range(100, 900),
+    italic: true,
+  },
+  {
+    id: "poppins",
+    label: "Poppins",
+    family: poppins.style.fontFamily,
+    category: "Sans",
+    weights: range(300, 800),
+    italic: true,
+  },
+  {
+    id: "bricolage",
+    label: "Bricolage Grotesque",
+    family: bricolage.style.fontFamily,
+    category: "Display",
+    weights: range(200, 800),
+    italic: false,
+  },
+  {
+    id: "funnel",
+    label: "Funnel Display",
+    family: funnel.style.fontFamily,
+    category: "Display",
+    weights: range(300, 800),
+    italic: false,
+  },
+  {
+    id: "syne",
+    label: "Syne",
+    family: syne.style.fontFamily,
+    category: "Display",
+    weights: range(400, 800),
+    italic: false,
+  },
+  {
+    id: "unbounded",
+    label: "Unbounded",
+    family: unbounded.style.fontFamily,
+    category: "Display",
+    weights: range(200, 900),
+    italic: false,
+  },
+  {
+    id: "instrument",
+    label: "Instrument Serif",
+    family: instrument.style.fontFamily,
+    category: "Serif",
+    weights: [400],
+    italic: true,
+  },
+  {
+    id: "fraunces",
+    label: "Fraunces",
+    family: fraunces.style.fontFamily,
+    category: "Serif",
+    weights: range(100, 900),
+    italic: true,
+  },
+  {
+    id: "playfair",
+    label: "Playfair Display",
+    family: playfair.style.fontFamily,
+    category: "Serif",
+    weights: range(400, 900),
+    italic: true,
+  },
+  {
+    id: "dm-serif",
+    label: "DM Serif Display",
+    family: dmSerif.style.fontFamily,
+    category: "Serif",
+    weights: [400],
+    italic: true,
+  },
+  {
+    id: "lora",
+    label: "Lora",
+    family: lora.style.fontFamily,
+    category: "Serif",
+    weights: range(400, 700),
+    italic: true,
+  },
+  {
+    id: "geist-mono",
+    label: "Geist Mono",
+    family: GeistMono.style.fontFamily,
+    category: "Mono",
+    weights: range(100, 900),
+    italic: false,
+  },
+  {
+    id: "space-mono",
+    label: "Space Mono",
+    family: spaceMono.style.fontFamily,
+    category: "Mono",
+    weights: [400, 700],
+    italic: true,
+  },
+  {
+    id: "ms-madi",
+    label: "Ms Madi",
+    family: madi.style.fontFamily,
+    category: "Script",
+    weights: [400],
+    italic: false,
+  },
+]
+
+export const FONT = Object.fromEntries(FONTS.map((f) => [f.id, f])) as Record<
+  string,
+  FontDef
+>
+
+export const fontFor = (id: string) => FONT[id] ?? FONTS[0]
+
+/** The nearest weight a family actually has. */
+export function nearestWeight(id: string, weight: number) {
+  return fontFor(id).weights.reduce((a, b) =>
+    Math.abs(b - weight) < Math.abs(a - weight) ? b : a
+  )
+}
+
+/** The class names that register every family's @font-face rules. */
+export const FONT_CLASSES = [
+  bricolage,
+  dmSerif,
+  fraunces,
+  funnel,
+  instrument,
+  inter,
+  lora,
+  manrope,
+  montserrat,
+  madi,
+  onest,
+  playfair,
+  poppins,
+  spaceGrotesk,
+  spaceMono,
+  syne,
+  unbounded,
+].map((f) => f.className)
